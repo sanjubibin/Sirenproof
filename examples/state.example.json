@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "settings": {
+    "max_lock_hours": 24,
+    "breaks_per_day": 3,
+    "break_minutes": 5,
+    "nudge_pause_seconds": 15,
+    "nudge_continue_minutes": 5
+  },
+  "rules": [
+    {
+      "id": "work-hours",
+      "name": "Work hours",
+      "goal": "Ship the quarterly report",
+      "block": [
+        "reddit.com",
+        "x.com",
+        "news.ycombinator.com",
+        "youtube.com/",
+        "youtube.com/shorts",
+        "youtube.com/feed"
+      ],
+      "when": {
+        "weekly": [
+          { "days": ["mon", "tue", "wed", "thu", "fri"], "from": "09:00", "to": "17:00" }
+        ]
+      },
+      "strength": "block",
+      "loosen_delay_minutes": 10
+    },
+    {
+      "id": "late-games",
+      "name": "Games on school nights",
+      "goal": "Asleep before midnight",
+      "block": ["app:steam.exe", "app:C:\\Riot Games\\", "app:discord.exe"],
+      "when": {
+        "weekly": [
+          { "days": ["sun", "mon", "tue", "wed", "thu"], "from": "22:30", "to": "06:00" }
+        ]
+      },
+      "strength": "nudge",
+      "loosen_delay_minutes": 2
+    },
+    {
+      "id": "exam-day",
+      "name": "Exam revision",
+      "goal": "Pass the algorithms exam",
+      "block": ["youtube.com", "reddit.com", "instagram.com"],
+      "allow": ["youtube.com/watch", "youtube.com/results"],
+      "when": { "from": "2026-11-09T08:00:00Z", "to": "2026-11-09T20:00:00Z" },
+      "strength": "lock",
+      "loosen_delay_minutes": 10,
+      "unlock": { "method": "wait", "wait_minutes": 60 }
+    }
+  ]
+}

@@ -36,6 +36,7 @@ jobs:
             mingw-w64-ucrt-x86_64-cmake
             mingw-w64-ucrt-x86_64-ninja
             mingw-w64-ucrt-x86_64-catch
+            mingw-w64-ucrt-x86_64-nlohmann-json
 
       - name: Configure
         run: cmake --preset ${{ matrix.preset }}
@@ -45,3 +46,8 @@ jobs:
 
       - name: Test
         run: ctest --preset ${{ matrix.preset }}
+
+      - name: Check the example rules with the CLI
+        run: |
+          ./build/${{ matrix.preset }}/cli/sirenproof.exe validate examples/state.example.json
+          ./build/${{ matrix.preset }}/cli/sirenproof.exe plan --state examples/state.example.json --at 2026-11-02T10:00:00Z
