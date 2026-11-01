@@ -2,7 +2,7 @@
 
 > Tie yourself to the mast.
 
-**Status:** agreed 1 November 2026. M0 (foundation) is done. Evidence and sources:
+**Status:** agreed 1 November 2026. M0 (foundation) and M1 (rule engine) are done. Evidence and sources:
 [RESEARCH.md](RESEARCH.md).
 References like [U5], [C2] or [T13] point to that document.
 
@@ -308,6 +308,7 @@ using a standard (non-admin) Windows account day to day.
 | Stop or kill the service | During a lock, the service refuses stop requests. If killed, Windows restarts it, and it fails closed: it reapplies everything on start. |
 | Uninstall | The uninstaller asks the service, and refuses during a lock. |
 | Change the clock | Lock time is counted with a clock Windows' time setting can't change (`QueryUnbiasedInterruptTime`), and the remaining time is stored, not an end timestamp [T36]. Schedules use a "trusted time" that ignores manual clock jumps while a rule is active. |
+| Change the time zone | Moves local time, which weekly schedules use, without moving UTC. In M2 the local offset goes through the same check as clock jumps, so a zone change that would loosen a rule in force is ignored until it's safe. |
 | Reboot | The service starts automatically, loads the remaining time, and fails closed. |
 | Rename or copy a game's exe | Matched by signer, original filename, folder or hash. |
 | Edit `state.json` | Folder permissions block normal users. An HMAC detects edits, and the last good state stays in force. |
@@ -346,7 +347,7 @@ A service running as SYSTEM with a pipe is a classic privilege-escalation target
 
 | Area | Choice | Why |
 |---|---|---|
-| Language | C++20 | Your choice. Every Win32 API we need is plain C. |
+| Language | C++23 | Your choice. Every Win32 API we need is plain C. C++23 adds `std::expected`, for error handling without exceptions. Fully supported by GCC 16. |
 | Toolchain | MSYS2 UCRT64: g++ 16.2, CMake 4.4, Ninja | Already installed. Verified against every API in the plan ([RESEARCH.md §3.5](RESEARCH.md#35-toolchain-check-msys2-ucrt64-g-1620)). |
 | JSON | nlohmann-json 3.12 | Header-only and widely used. In MSYS2. |
 | Tests | Catch2 3 | In MSYS2. Integrates with CTest. |

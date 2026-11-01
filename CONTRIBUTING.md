@@ -40,7 +40,7 @@ out of your own PC if it has a bug:
 
 ## Code style
 
-- C++20. Formatting follows [.clang-format](.clang-format), and [.editorconfig](.editorconfig) covers the
+- C++23. Formatting follows [.clang-format](.clang-format), and [.editorconfig](.editorconfig) covers the
   rest.
 - Prefer small, pure functions in `core/` with tests next to every behaviour change.
 - Comments explain *why*, not *what*.
