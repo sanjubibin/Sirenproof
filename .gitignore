@@ -1,0 +1,19 @@
+# Build output
+/build/
+/dist/
+/out/
+
+# Local CMake overrides (machine-specific toolchain paths)
+CMakeUserPresets.json
+
+# Editors and IDEs
+.vs/
+.vscode/
+.idea/
+*.user
+*.swp
+*~
+
+# Windows
+Thumbs.db
+desktop.ini

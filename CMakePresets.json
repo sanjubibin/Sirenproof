@@ -1,0 +1,69 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "msys2-ucrt64",
+      "hidden": true,
+      "description": "MSYS2 UCRT64 toolchain at C:/msys64 (copy to CMakeUserPresets.json if yours is elsewhere)",
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": "C:/msys64/ucrt64/bin/g++.exe",
+        "CMAKE_MAKE_PROGRAM": "C:/msys64/ucrt64/bin/ninja.exe",
+        "CMAKE_PREFIX_PATH": "C:/msys64/ucrt64"
+      },
+      "environment": {
+        "PATH": "C:/msys64/ucrt64/bin;$penv{PATH}"
+      }
+    },
+    {
+      "name": "debug",
+      "displayName": "Debug (MSYS2 UCRT64)",
+      "inherits": ["base", "msys2-ucrt64"],
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    },
+    {
+      "name": "release",
+      "displayName": "Release (MSYS2 UCRT64)",
+      "inherits": ["base", "msys2-ucrt64"],
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "ci-debug",
+      "displayName": "CI debug (toolchain from PATH, warnings as errors)",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "SIRENPROOF_WARNINGS_AS_ERRORS": "ON"
+      }
+    },
+    {
+      "name": "ci-release",
+      "displayName": "CI release (toolchain from PATH, warnings as errors)",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "SIRENPROOF_WARNINGS_AS_ERRORS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "debug", "configurePreset": "debug" },
+    { "name": "release", "configurePreset": "release" },
+    { "name": "ci-debug", "configurePreset": "ci-debug" },
+    { "name": "ci-release", "configurePreset": "ci-release" }
+  ],
+  "testPresets": [
+    { "name": "debug", "configurePreset": "debug", "output": { "outputOnFailure": true } },
+    { "name": "release", "configurePreset": "release", "output": { "outputOnFailure": true } },
+    { "name": "ci-debug", "configurePreset": "ci-debug", "output": { "outputOnFailure": true } },
+    { "name": "ci-release", "configurePreset": "ci-release", "output": { "outputOnFailure": true } }
+  ]
+}

@@ -1,0 +1,15 @@
+# Normalise line endings in the repository; check out with the platform default.
+* text=auto
+
+# Windows-only scripts keep CRLF so PowerShell and Inno Setup are happy.
+*.ps1 text eol=crlf
+*.iss text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Shell scripts and CI config must stay LF.
+*.sh  text eol=lf
+*.yml text eol=lf
+
+*.png binary
+*.ico binary
