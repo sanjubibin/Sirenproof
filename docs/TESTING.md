@@ -40,6 +40,25 @@ file called `dev-unlock` in the data folder: debug builds then drop every rule.
 > Run these commands from PowerShell or `cmd`, not Git Bash. Git Bash rewrites arguments such as pipe
 > names (`\\.\pipe\...`) before the program sees them.
 
+## Trying the main window and the tray icon
+
+With the console service running, start either from PowerShell. The main window uses Qt's libraries
+from MSYS2, so put them on the path first (the installer will ship its own copies):
+
+```powershell
+$env:PATH = "C:\msys64\ucrt64\bin;$env:PATH"
+build\debug\bin\sirenproof-ui.exe
+build\debug\bin\sirenproof-tray.exe
+```
+
+Both talk to the service like the command line does, and only trust a service that runs from their own
+folder. Clicking the tray icon opens the window, and right-clicking it offers a break. Closing the window
+or hiding the icon never stops any blocking.
+
+To check the tray without leaving an icon behind, `sirenproof-tray.exe --self-test` adds the icon, reads
+the service's status once, prints what the tooltip says and removes the icon again. For a quick look at
+a screen without a window, `sirenproof-ui.exe --screen rules --screenshot rules.png` renders it to a file.
+
 ## Trying the browser extension safely
 
 The extension only blocks pages. In console mode the service still uses its stand-in hosts file and

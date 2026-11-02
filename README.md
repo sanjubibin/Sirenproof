@@ -35,9 +35,15 @@ lecturing you.
   - During locks, private windows and DNS-over-HTTPS are turned off by policy, and browsers without
     the extension are closed after a warning.
   - The browser part of the virtual-machine test is still to run.
-- **M4 (interface):** next, starting with a design prototype to approve.
+- **M4 (interface):** in progress. The design prototype was approved. Built so far:
+  - the main window's Now, Rules and Start a lock screens, with hold-to-lock, unlock early and a live
+    rule tester;
+  - the tray icon, which shows whether a lock holds, opens the window and offers a break.
+  - Still to come: the schedule painter, the command palette, the "Lock down this PC" setup and the
+    pause overlay for programs.
 
-See the [plan](docs/PLAN.md#8-milestones) for the full roadmap.
+See the [roadmap](ROADMAP.md) for what's next and the [changelog](CHANGELOG.md) for what has changed.
+The reasoning behind both is in the [plan](docs/PLAN.md#8-milestones).
 
 ## What it will do
 
@@ -65,6 +71,12 @@ Sirenproof is C++23, built with the [MSYS2](https://www.msys2.org/) UCRT64 toolc
 
    ```bash
    pacman -S --needed mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-catch mingw-w64-ucrt-x86_64-nlohmann-json
+   ```
+
+   The main window also needs Qt 6. Without it, everything else still builds:
+
+   ```bash
+   pacman -S --needed mingw-w64-ucrt-x86_64-qt6-base mingw-w64-ucrt-x86_64-qt6-declarative
    ```
 
 3. Build and test. These commands work from PowerShell or the UCRT64 shell, in the repository folder:
@@ -127,6 +139,8 @@ service/   sirenproof-service.exe: the background service
 host/      sirenproof-host.exe: the relay between the browser extension and the service
 extension/ The Chrome / Edge extension (Manifest V3, no build step) and its tests
 cli/       sirenproof.exe: the command line
+ui/        sirenproof-ui.exe: the main window (Qt Quick); runs only while it's open
+tray/      sirenproof-tray.exe: the tray icon (plain Win32)
 tests/     Unit tests (core) and integration tests (platform)
 tools/     dev-reset.ps1: undo everything Sirenproof changed, for developers
 examples/  An example rules file
@@ -134,8 +148,7 @@ cmake/     Warning and hardening flags
 docs/      Research, plan and testing guide
 ```
 
-The service, command line, tray app, browser extension and installer arrive in later milestones (see
-[the plan](docs/PLAN.md#7-repository-layout)).
+The installer arrives in M5 (see [the plan](docs/PLAN.md#7-repository-layout)).
 
 ## Contributing
 
