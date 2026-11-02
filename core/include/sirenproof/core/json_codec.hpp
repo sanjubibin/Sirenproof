@@ -21,6 +21,8 @@ public:
 // Readers throw JsonError; rule_from_json also re-checks the safety rails.
 Rule rule_from_json(const Json& value, const std::string& path);
 Json rule_to_json(const Rule& rule);
+When when_from_json(const Json& value, const std::string& path);
+Json when_to_json(const When& when);
 Settings settings_from_json(const Json& value, const std::string& path);
 Json settings_to_json(const Settings& settings);
 

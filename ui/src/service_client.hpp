@@ -39,6 +39,7 @@ public:
     Q_INVOKABLE QVariantMap addTarget(const QString& rule, const QString& target);
     Q_INVOKABLE QVariantMap removeTarget(const QString& rule, const QString& target);
     Q_INVOKABLE QVariantMap setStrength(const QString& rule, const QString& strength);
+    Q_INVOKABLE QVariantMap setWhen(const QString& rule, const QVariant& when);
     Q_INVOKABLE QVariantMap removeRule(const QString& rule);
     Q_INVOKABLE QVariantMap cancelPending(const QString& id);
     Q_INVOKABLE QVariantMap startBreak();
@@ -48,6 +49,13 @@ public:
     Q_INVOKABLE QVariantMap finishTypeUnlock(const QString& rule, const QString& text);
     Q_INVOKABLE QVariantMap enterFriendCode(const QString& rule, const QString& code);
     Q_INVOKABLE QVariantMap check(const QString& subject);
+
+    // The schedule painter works in the 168 hours of the week, Monday 00:00 first. These don't call the
+    // service. weekHours gives each hour as 0 (off), 1 (part of it) or 2 (all of it), or an empty list
+    // for a one-off session. paintHours turns the given hours on or off and returns the new `when`;
+    // hours it doesn't touch keep their exact minutes. It returns null if no hour would be left on.
+    Q_INVOKABLE QVariantList weekHours(const QVariant& when) const;
+    Q_INVOKABLE QVariant paintHours(const QVariant& when, const QVariantList& hours, bool on) const;
 
 signals:
     void changed();

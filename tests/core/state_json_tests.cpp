@@ -3,6 +3,7 @@
 #include <fstream>
 #include <sstream>
 
+#include "sirenproof/core/json_codec.hpp"
 #include "sirenproof/core/state_json.hpp"
 #include "test_support.hpp"
 
@@ -127,4 +128,18 @@ TEST_CASE("Lowering the lock cap never makes an existing state unreadable", "[js
                    "when": {"from": "2026-11-09T08:00:00Z", "to": "2026-11-09T18:00:00Z"}}]
     })");
     CHECK(state.has_value());
+}
+
+TEST_CASE("A rule's schedule converts on its own, as strictly as in a state file", "[json]") {
+    const Json weekly = Json::parse(R"({"weekly":[{"days":["mon","tue","wed","thu","fri"],"from":"09:00","to":"17:00"}]})");
+    const When when = when_from_json(weekly, "when");
+    REQUIRE(std::holds_alternative<WeeklySchedule>(when));
+    CHECK(std::get<WeeklySchedule>(when) == schedule(kWeekdays, 9 * 60, 17 * 60));
+    CHECK(when_to_json(when) == weekly);
+
+    CHECK(std::holds_alternative<Always>(when_from_json(Json("always"), "when")));
+    CHECK(when_to_json(Always{}) == Json("always"));
+    CHECK_THROWS_AS(when_from_json(Json::parse(R"({"weekly":[]})"), "when"), JsonError);
+    CHECK_THROWS_AS(when_from_json(Json::parse(R"({"weekly":[{"days":["mon"],"from":"9am","to":"17:00"}]})"), "when"),
+                    JsonError);
 }

@@ -36,11 +36,11 @@ lecturing you.
     the extension are closed after a warning.
   - The browser part of the virtual-machine test is still to run.
 - **M4 (interface):** in progress. The design prototype was approved. Built so far:
-  - the main window's Now, Rules and Start a lock screens, with hold-to-lock, unlock early and a live
-    rule tester;
+  - the main window's Now, Rules and Start a lock screens, with hold-to-lock, unlock early, a live
+    rule tester and a schedule painter;
   - the tray icon, which shows whether a lock holds, opens the window and offers a break.
-  - Still to come: the schedule painter, the command palette, the "Lock down this PC" setup and the
-    pause overlay for programs.
+  - Still to come: the command palette, the "Lock down this PC" setup and the pause overlay for
+    programs.
 
 See the [roadmap](ROADMAP.md) for what's next and the [changelog](CHANGELOG.md) for what has changed.
 The reasoning behind both is in the [plan](docs/PLAN.md#8-milestones).

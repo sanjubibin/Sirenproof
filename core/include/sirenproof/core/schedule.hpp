@@ -23,13 +23,22 @@ struct WeeklyWindow {
 inline constexpr std::uint8_t kWeekdays = 0b0011111;
 inline constexpr std::uint8_t kEveryDay = 0b1111111;
 
+// One bit per minute of the week, Monday 00:00 first.
+using WeekMinutes = std::bitset<kMinutesPerWeek>;
+
 // A set of windows, kept as one bit per minute of the week so that comparisons are exact.
 class WeeklySchedule {
 public:
     // nullopt if there are no windows or any window is malformed.
     static std::optional<WeeklySchedule> make(std::vector<WeeklyWindow> windows);
 
+    // The schedule that is on at exactly these minutes, in as few windows as it takes: days with the same
+    // hours share a window, and an evening that runs on into the next morning is one overnight window.
+    // nullopt if no minute is set.
+    static std::optional<WeeklySchedule> from_minutes(const WeekMinutes& minutes);
+
     const std::vector<WeeklyWindow>& windows() const noexcept { return windows_; }
+    const WeekMinutes& minutes() const noexcept { return minutes_; }
 
     bool active_at(int minute_of_week) const;
 
@@ -46,7 +55,7 @@ public:
 
 private:
     std::vector<WeeklyWindow> windows_;
-    std::bitset<kMinutesPerWeek> minutes_;
+    WeekMinutes minutes_;
 };
 
 }  // namespace sirenproof::core

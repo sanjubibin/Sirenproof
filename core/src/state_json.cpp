@@ -381,6 +381,8 @@ json write_pending(const PendingChange& p) {
 
 Rule rule_from_json(const Json& value, const std::string& path) { return read_rule(value, path); }
 Json rule_to_json(const Rule& rule) { return write_rule(rule); }
+When when_from_json(const Json& value, const std::string& path) { return read_when(value, path); }
+Json when_to_json(const When& when) { return write_when(when); }
 Settings settings_from_json(const Json& value, const std::string& path) { return read_settings(value, path); }
 Json settings_to_json(const Settings& settings) { return write_settings(settings); }
 

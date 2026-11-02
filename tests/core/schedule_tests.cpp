@@ -1,5 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
+#include <vector>
+
 #include "sirenproof/core/schedule.hpp"
 #include "test_support.hpp"
 
@@ -76,4 +79,51 @@ TEST_CASE("longest_active_run measures the longest unbroken stretch, across the 
                                                {kMonday, 0, 2 * 60}});
     REQUIRE(weekend);
     CHECK(weekend->longest_active_run() == 52 * 60);
+}
+
+TEST_CASE("from_minutes writes the same minutes back as few, readable windows", "[schedule]") {
+    CHECK_FALSE(WeeklySchedule::from_minutes({}));
+
+    // Office hours on weekdays come back as one window.
+    const auto work = WeeklySchedule::from_minutes(schedule(kWeekdays, 9 * 60, 17 * 60).minutes());
+    REQUIRE(work);
+    CHECK(work->windows() == std::vector<WeeklyWindow>{{kWeekdays, 9 * 60, 17 * 60}});
+
+    // Evenings that run past midnight come back as one overnight window, Sunday into Monday included.
+    const auto nights = WeeklySchedule::from_minutes(schedule(kEveryDay, 22 * 60, 6 * 60).minutes());
+    REQUIRE(nights);
+    CHECK(nights->windows() == std::vector<WeeklyWindow>{{kEveryDay, 22 * 60, 6 * 60}});
+
+    // Whole days stay whole days rather than joining up into one long overnight window.
+    const auto weekend = WeeklySchedule::from_minutes(
+        schedule(static_cast<std::uint8_t>(kSaturday | kSunday), 0, kMinutesPerDay).minutes());
+    REQUIRE(weekend);
+    CHECK(weekend->windows() ==
+          std::vector<WeeklyWindow>{{static_cast<std::uint8_t>(kSaturday | kSunday), 0, kMinutesPerDay}});
+}
+
+TEST_CASE("from_minutes keeps every minute exactly, however the hours were painted", "[schedule]") {
+    // A messy week: office hours from 09:30, a lunch gap on Tuesday, odd minutes on Wednesday, a late
+    // Friday that runs into Saturday, and a Sunday evening that can't join Monday's long morning
+    // because that morning runs past 20:00.
+    const auto set = [](WeekMinutes& bits, int from, int to, bool on) {
+        for (int m = from; m < to; ++m) bits.set(static_cast<std::size_t>(m), on);
+    };
+    WeekMinutes minutes = schedule(kWeekdays, 9 * 60 + 30, 17 * 60).minutes();
+    set(minutes, day(1, 12), day(1, 13), false);
+    set(minutes, day(2, 20, 7), day(2, 20, 52), true);
+    set(minutes, day(4, 23), day(5, 3), true);
+    set(minutes, day(6, 20), day(6, 24), true);
+    set(minutes, day(0, 0), day(0, 21), true);
+
+    const auto rebuilt = WeeklySchedule::from_minutes(minutes);
+    REQUIRE(rebuilt);
+    CHECK(rebuilt->minutes() == minutes);
+
+    const auto has = [&](WeeklyWindow w) { return std::ranges::count(rebuilt->windows(), w) == 1; };
+    constexpr std::uint8_t kWednesdayToFriday = 0b0011100;
+    CHECK(has({kWednesdayToFriday, 9 * 60 + 30, 17 * 60}));
+    CHECK(has({kFriday, 23 * 60, 3 * 60}));
+    CHECK(has({kSunday, 20 * 60, kMinutesPerDay}));
+    CHECK(has({kMonday, 0, 21 * 60}));
 }

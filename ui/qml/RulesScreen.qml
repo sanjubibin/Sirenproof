@@ -9,6 +9,7 @@ Flickable {
 
     signal report(var result, string success)
 
+    required property real now
     property string selected: ""
     readonly property var rules: Service.rules || []
     readonly property var rule: rules.find(r => r.id === selected) || rules[0] || null
@@ -21,10 +22,14 @@ Flickable {
     function dayRange(list) {
         const names = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
         const label = d => d.charAt(0).toUpperCase() + d.slice(1)
-        const idx = list.map(d => names.indexOf(d)).sort((a, b) => a - b)
-        const contiguous = idx.every((v, i) => i === 0 || v === idx[i - 1] + 1)
-        if (contiguous && idx.length > 2) return `${label(names[idx[0]])}–${label(names[idx[idx.length - 1]])}`
-        return idx.map(i => label(names[i])).join(", ")
+        const on = new Set(list.map(d => names.indexOf(d)))
+        if (on.size === 7) return "Every day"
+        // Start the week where a run of days starts, so Sun–Thu reads as one range.
+        const start = [0, 1, 2, 3, 4, 5, 6].find(i => on.has(i) && !on.has((i + 6) % 7))
+        const ordered = [0, 1, 2, 3, 4, 5, 6].map(i => (start + i) % 7).filter(i => on.has(i))
+        const contiguous = ordered.every((v, i) => i === 0 || v === (ordered[i - 1] + 1) % 7)
+        if (contiguous && ordered.length > 2) return `${label(names[ordered[0]])}–${label(names[ordered[ordered.length - 1]])}`
+        return [...on].sort((a, b) => a - b).map(i => label(names[i])).join(", ")
     }
 
     function when(r) {
@@ -228,9 +233,41 @@ Flickable {
             }
 
             ColumnLayout {
-                spacing: 6
-                Text { text: "WHEN"; color: Theme.muted; font.pixelSize: 12; font.weight: Font.DemiBold; font.letterSpacing: 1.6 }
-                Text { text: root.when(root.rule); color: Theme.text }
+                Layout.fillWidth: true
+                spacing: 10
+                readonly property bool weekly: root.rule !== null && (root.rule.when === "always" || !!root.rule.when.weekly)
+                Text {
+                    text: parent.weekly ? "WHEN · PAINT THE HOURS" : "WHEN"
+                    color: Theme.muted; font.pixelSize: 12; font.weight: Font.DemiBold; font.letterSpacing: 1.6
+                }
+                ScheduleGrid {
+                    id: painter
+                    Layout.fillWidth: true
+                    visible: parent.weekly
+                    when: root.rule ? root.rule.when : "always"
+                    now: root.now
+                    offsetMinutes: Service.status.local_offset_minutes || 0
+                    onPainted: (hours, on) => {
+                        const next = Service.paintHours(root.rule.when, hours, on)
+                        if (!next) {
+                            root.report({ error: "A rule needs at least one hour. To stop it altogether, remove the rule" }, "")
+                            return
+                        }
+                        root.report(Service.setWhen(root.rule.id, next), on ? "More hours: applied at once." : "Fewer hours: applied.")
+                    }
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: painter.caption || root.when(root.rule)
+                    color: Theme.text
+                    elide: Text.ElideRight
+                }
+                Text {
+                    Layout.fillWidth: true
+                    visible: parent.weekly
+                    text: "Drag across the week to add hours, or start on a lit hour to clear them. Adding applies at once; clearing waits for the rule's delay."
+                    color: Theme.muted; font.pixelSize: 13; wrapMode: Text.Wrap
+                }
             }
 
             Rectangle {

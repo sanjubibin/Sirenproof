@@ -1,6 +1,8 @@
 #include "service_client.hpp"
 
 #include <chrono>
+#include <optional>
+#include <variant>
 
 #include "json_variant.hpp"
 #include "sirenproof/core/time.hpp"
@@ -20,6 +22,19 @@ bool windows_animations_on() {
     BOOL on = TRUE;
     SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION, 0, &on, 0);
     return on != FALSE;
+}
+
+constexpr int kHoursPerWeek = 7 * 24;
+
+// The minutes of the week a rule applies, or nullopt for a one-off session.
+std::optional<core::WeekMinutes> week_minutes(const QVariant& when) {
+    try {
+        const core::When parsed = core::when_from_json(from_variant(when), "when");
+        if (std::holds_alternative<core::Always>(parsed)) return core::WeekMinutes{}.set();
+        if (const auto* weekly = std::get_if<core::WeeklySchedule>(&parsed)) return weekly->minutes();
+    } catch (const core::JsonError&) {
+    }
+    return std::nullopt;
 }
 
 }  // namespace
@@ -102,6 +117,37 @@ QVariantMap ServiceClient::removeTarget(const QString& rule, const QString& targ
 
 QVariantMap ServiceClient::setStrength(const QString& rule, const QString& strength) {
     return update_rule(rule, [&](Json& r) { r["strength"] = strength.toStdString(); });
+}
+
+QVariantMap ServiceClient::setWhen(const QString& rule, const QVariant& when) {
+    return update_rule(rule, [&](Json& r) { r["when"] = from_variant(when); });
+}
+
+QVariantList ServiceClient::weekHours(const QVariant& when) const {
+    QVariantList hours;
+    const auto minutes = week_minutes(when);
+    if (!minutes) return hours;
+    for (int hour = 0; hour < kHoursPerWeek; ++hour) {
+        int on = 0;
+        for (int m = 0; m < 60; ++m) on += minutes->test(static_cast<std::size_t>(hour * 60 + m)) ? 1 : 0;
+        hours.push_back(on == 60 ? 2 : on > 0 ? 1 : 0);
+    }
+    return hours;
+}
+
+QVariant ServiceClient::paintHours(const QVariant& when, const QVariantList& hours, bool on) const {
+    auto minutes = week_minutes(when);
+    if (!minutes) return {};
+    for (const QVariant& value : hours) {
+        const int hour = value.toInt();
+        if (hour < 0 || hour >= kHoursPerWeek) continue;
+        for (int m = 0; m < 60; ++m) minutes->set(static_cast<std::size_t>(hour * 60 + m), on);
+    }
+    // Every hour on is "always", which the service can tell is no looser than any schedule.
+    if (minutes->all()) return QStringLiteral("always");
+    const auto schedule = core::WeeklySchedule::from_minutes(*minutes);
+    if (!schedule) return {};
+    return to_variant(core::when_to_json(*schedule));
 }
 
 QVariantMap ServiceClient::removeRule(const QString& rule) {

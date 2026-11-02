@@ -17,8 +17,12 @@ milestone, newest first. What comes next is in the [roadmap](ROADMAP.md).
     - **Now:** the mast ring counts down the lock that holds. It also shows what's blocked right now,
       changes waiting to apply, breaks left today, and ending a lock early with its unlock method (wait,
       type or friend code; pasting is blocked).
-    - **Rules:** every rule; add or remove sites, pages and apps; change the strength; see when it
-      applies; a live rule tester; remove a rule.
+    - **Rules:** every rule; add or remove sites, pages and apps; change the strength; a live rule
+      tester; remove a rule.
+    - **Schedule painter:** the week as 7 × 24 hours. Drag to paint hours on, or start on a lit hour to
+      clear them; arrow keys and Space work too. Hours you don't touch keep their exact minutes (09:30
+      stays 09:30), and the current hour is marked. Adding hours applies at once; clearing them waits
+      for the rule's delay.
     - **Start a lock:** ready-made sets, length, unlock method, goal and a preview, then hold for two
       seconds to commit.
     - Reconnects to the service by itself, and honours Windows' "show animations" setting.
@@ -75,5 +79,8 @@ milestone, newest first. What comes next is in the [roadmap](ROADMAP.md).
 
 ### Changed
 
+- Messages from the service show times on your PC's clock instead of in UTC.
+- A rule's schedule can be read and written on its own (`when_from_json`, `when_to_json`), and
+  `WeeklySchedule::from_minutes` writes any set of minutes back as the fewest readable windows.
 - The service's status now describes each lock in full: its rule, name, goal, start, unlock method and
   whether breaks are allowed. The main window uses this.

@@ -3,7 +3,7 @@
 Where Sirenproof stands and what comes next. The reasoning behind each step is in the
 [plan](docs/PLAN.md); what has already changed is in the [changelog](CHANGELOG.md).
 
-*Last updated: 2 November 2026.*
+*Last updated: 3 November 2026.*
 
 ## Milestones
 
@@ -23,7 +23,7 @@ Where Sirenproof stands and what comes next. The reasoning behind each step is i
 - [x] Main window: Rules screen (targets, strength, rule tester, remove)
 - [x] Main window: Start a lock (ready-made sets, unlock method, goal, preview, hold to lock)
 - [x] Tray icon (status, open window, break, notifications)
-- [ ] Schedule painter: drag across the week to set when a rule applies
+- [x] Schedule painter: drag across the week to set when a rule applies
 - [ ] Command palette (Ctrl+K): type `lock youtube 2h` or `break 5m`
 - [ ] Ready-made lists in the Rules screen
 - [ ] The typing and friend-code unlock challenges, polished

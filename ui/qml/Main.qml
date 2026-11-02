@@ -22,7 +22,13 @@ ApplicationWindow {
     font.pixelSize: 15
 
     function say(message) {
-        toastText.text = message
+        // The service writes times in UTC (2026-11-02T18:30:00Z); show them on this PC's clock.
+        let text = String(message).replace(/\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ/g, iso => {
+            const ms = Date.parse(iso)
+            return ms - Date.now() > 20 * 3600e3 ? Qt.formatDateTime(new Date(ms), "ddd hh:mm") : Theme.clock(ms)
+        })
+        text = text.charAt(0).toUpperCase() + text.slice(1)
+        toastText.text = /[.!?]$/.test(text) ? text : text + "."
         toast.shown = true
         toastTimer.restart()
     }
@@ -180,6 +186,7 @@ ApplicationWindow {
                     onReport: (result, success) => window.report(result, success)
                 }
                 RulesScreen {
+                    now: window.now
                     onReport: (result, success) => window.report(result, success)
                 }
                 LockScreen {

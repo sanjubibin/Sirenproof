@@ -22,6 +22,7 @@ qt_add_qml_module(sirenproof_ui
         qml/MastRing.qml
         qml/NowScreen.qml
         qml/RulesScreen.qml
+        qml/ScheduleGrid.qml
         qml/SirenButton.qml
         qml/Theme.qml)
 
