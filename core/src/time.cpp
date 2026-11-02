@@ -70,4 +70,22 @@ std::optional<int> parse_clock(std::string_view text) {
     return total;
 }
 
+std::optional<Minutes> parse_duration(std::string_view text) {
+    int total = 0;
+    int number = -1;
+    for (const char c : text) {
+        if (c >= '0' && c <= '9') {
+            number = (number < 0 ? 0 : number) * 10 + (c - '0');
+            if (number > 100'000) return std::nullopt;
+        } else if ((c == 'h' || c == 'm') && number >= 0) {
+            total += c == 'h' ? number * 60 : number;
+            number = -1;
+        } else {
+            return std::nullopt;
+        }
+    }
+    if (number >= 0) total += number;
+    return total > 0 ? std::optional(Minutes{total}) : std::nullopt;
+}
+
 }  // namespace sirenproof::core

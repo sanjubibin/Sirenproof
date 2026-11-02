@@ -58,6 +58,8 @@ or hiding the icon never stops any blocking.
 To check the tray without leaving an icon behind, `sirenproof-tray.exe --self-test` adds the icon, reads
 the service's status once, prints what the tooltip says and removes the icon again. For a quick look at
 a screen without a window, `sirenproof-ui.exe --screen rules --screenshot rules.png` renders it to a file.
+Add `--palette "lock youtube 2h"` to see the command palette, or `--run "<command>"` to see what a command
+does.
 
 ## Trying the browser extension safely
 

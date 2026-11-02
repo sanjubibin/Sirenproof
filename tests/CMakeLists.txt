@@ -5,6 +5,7 @@ add_executable(core_tests
     core/app_tests.cpp
     core/browser_tests.cpp
     core/clock_tests.cpp
+    core/command_tests.cpp
     core/crypto_tests.cpp
     core/domain_tests.cpp
     core/hosts_tests.cpp

@@ -5,6 +5,8 @@
 #include <variant>
 
 #include "json_variant.hpp"
+#include "sirenproof/core/command.hpp"
+#include "sirenproof/core/target.hpp"
 #include "sirenproof/core/time.hpp"
 #include "sirenproof/platform/paths.hpp"
 #include "sirenproof/platform/pipe.hpp"
@@ -101,6 +103,46 @@ QVariantMap ServiceClient::update_rule(const QString& id, const std::function<vo
     return error("there is no rule called " + id.toStdString());
 }
 
+QVariantList ServiceClient::readyLists() const {
+    QVariantList lists;
+    for (const core::ReadyList& list : core::ready_lists()) {
+        QStringList targets;
+        for (const std::string_view t : list.targets) targets.push_back(QString::fromUtf8(t.data(), static_cast<qsizetype>(t.size())));
+        const auto text = [](std::string_view s) { return QString::fromUtf8(s.data(), static_cast<qsizetype>(s.size())); };
+        lists.push_back(QVariantMap{{"id", text(list.id)},
+                                    {"label", text(list.label)},
+                                    {"detail", text(list.detail)},
+                                    {"effect", text(list.effect)},
+                                    {"targets", targets}});
+    }
+    return lists;
+}
+
+QVariantMap ServiceClient::addRule(const QVariantList& targets, int minutes, const QString& strength) {
+    core::Rule rule;
+    for (const QVariant& value : targets) {
+        auto target = core::parse_target(value.toString().toStdString());
+        if (!target) return error(value.toString().toStdString() + " isn't a site, page or app");
+        rule.block.push_back(*std::move(target));
+    }
+    if (rule.block.empty()) return error("there's nothing to block");
+    rule.name = core::to_string(rule.block.front());
+    if (rule.block.size() > 1) rule.name += " and " + std::to_string(rule.block.size() - 1) + " more";
+    rule.strength = strength == "nudge" ? core::Strength::Nudge : core::Strength::Block;
+    if (rule.strength == core::Strength::Nudge) rule.loosen_delay = core::Minutes{2};  // as the command line does
+
+    // The service sets the real start and end from its trusted clock; these only have to be valid.
+    const auto now = std::chrono::floor<core::Seconds>(std::chrono::system_clock::now());
+    if (minutes > 0) rule.when = core::Span{now, now + core::Minutes{minutes}};
+    Json rule_json = core::rule_to_json(rule);
+    rule_json.erase("id");  // the service picks one
+    Json args{{"rule", rule_json}};
+    if (minutes > 0) args["for_minutes"] = minutes;
+    const QVariantMap result = call("rules.add", args);
+    refresh();
+    return result;
+}
+
 QVariantMap ServiceClient::addTarget(const QString& rule, const QString& target) {
     return update_rule(rule, [&](Json& r) { r["block"].push_back(target.trimmed().toStdString()); });
 }
@@ -148,6 +190,42 @@ QVariant ServiceClient::paintHours(const QVariant& when, const QVariantList& hou
     const auto schedule = core::WeeklySchedule::from_minutes(*minutes);
     if (!schedule) return {};
     return to_variant(core::when_to_json(*schedule));
+}
+
+QVariantMap ServiceClient::parseCommand(const QString& text) const {
+    const auto parsed = core::parse_command(text.toStdString());
+    if (!parsed) {
+        return {{"error", QString::fromStdString(parsed.error().message)}, {"known", parsed.error().known_verb}};
+    }
+    const core::Command& c = *parsed;
+    static constexpr const char* kKinds[] = {"block", "lock", "break", "check", "go"};
+    static constexpr const char* kStrengths[] = {"nudge", "block", "lock"};
+
+    QStringList lists;
+    QStringList all_targets;  // the lists' targets and the rest, for running it as one rule
+    for (const std::string& id : c.lists) {
+        lists.push_back(QString::fromStdString(id));
+        if (const core::ReadyList* list = core::find_ready_list(id)) {
+            for (const std::string_view t : list->targets) {
+                const QString target = QString::fromUtf8(t.data(), static_cast<qsizetype>(t.size()));
+                if (!all_targets.contains(target)) all_targets.push_back(target);
+            }
+        }
+    }
+    QStringList targets;
+    for (const std::string& t : c.targets) {
+        targets.push_back(QString::fromStdString(t));
+        if (!all_targets.contains(targets.back())) all_targets.push_back(targets.back());
+    }
+    return {{"kind", kKinds[static_cast<int>(c.kind)]},
+            {"lists", lists},
+            {"targets", targets},
+            {"all_targets", all_targets},
+            {"minutes", c.length ? static_cast<int>(c.length->count()) : 0},
+            {"strength", kStrengths[static_cast<int>(c.strength)]},
+            {"unlock", QString::fromStdString(c.unlock)},
+            {"subject", QString::fromStdString(c.subject)},
+            {"screen", QString::fromStdString(c.screen)}};
 }
 
 QVariantMap ServiceClient::removeRule(const QString& rule) {

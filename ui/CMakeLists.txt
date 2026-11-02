@@ -17,6 +17,7 @@ qt_add_qml_module(sirenproof_ui
     VERSION 1.0
     QML_FILES
         qml/Card.qml
+        qml/CommandPalette.qml
         qml/LockScreen.qml
         qml/Main.qml
         qml/MastRing.qml

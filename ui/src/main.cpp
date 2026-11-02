@@ -1,6 +1,8 @@
 // sirenproof-ui: the main window.
 //
-//   sirenproof-ui [--pipe <name>] [--screen now|rules|lock]
+//   sirenproof-ui [--pipe <name>] [--screen now|rules|lock] [--palette <command>] [--run <command>]
+//     --palette opens the command palette with that text; --run does the command as if typed there
+//     (a lock still only fills in the lock screen)
 //   sirenproof-ui --screenshot <file.png> [--screen ...]   render one screen offscreen and exit (development)
 
 #include <QFontDatabase>
@@ -61,7 +63,9 @@ int main(int argc, char* argv[]) {
     qmlRegisterSingletonInstance("Sirenproof.Backend", 1, 0, "Service", &service);
 
     QQmlApplicationEngine engine;
-    engine.setInitialProperties({{"screen", screen.isEmpty() ? QStringLiteral("now") : screen}});
+    engine.setInitialProperties({{"screen", screen.isEmpty() ? QStringLiteral("now") : screen},
+                                 {"paletteText", option(args, "--palette")},
+                                 {"runText", option(args, "--run")}});
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, &app, [] { QCoreApplication::exit(1); },
                      Qt::QueuedConnection);
     engine.loadFromModule("Sirenproof", "Main");

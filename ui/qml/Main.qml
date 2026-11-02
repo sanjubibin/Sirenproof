@@ -7,6 +7,9 @@ ApplicationWindow {
     id: window
 
     required property string screen
+    // From the command line: text to open the command palette with, or a command to run at start.
+    property string paletteText: ""
+    property string runText: ""
     // Trusted time from the service, ticking locally between refreshes.
     property real skew: 0
     property real now: Date.now()
@@ -31,6 +34,51 @@ ApplicationWindow {
         toastText.text = /[.!?]$/.test(text) ? text : text + "."
         toast.shown = true
         toastTimer.restart()
+    }
+
+    // Does what the command palette understood.
+    function runCommand(c) {
+        switch (c.kind) {
+        case "block": {
+            const what = c.all_targets.length === 1 ? c.all_targets[0] : `${c.all_targets.length} sites and apps`
+            const until = c.minutes ? ` until ${Theme.clock(window.now + c.minutes * 60000)}` : ""
+            report(Service.addRule(c.all_targets, c.minutes, c.strength),
+                   c.strength === "nudge" ? `A nudge now comes before ${what}${until}.` : `${what} is blocked${until}.`)
+            break
+        }
+        case "lock":
+            window.screen = "lock"
+            lockScreen.prefill(c.lists, c.targets, c.minutes, c.unlock)
+            break
+        case "break":
+            report(Service.startBreak(), "Break started. Blocks that allow breaks are off until it ends.")
+            break
+        case "check":
+            window.screen = "rules"
+            rulesScreen.test(c.subject)
+            break
+        default:
+            window.screen = c.screen
+        }
+    }
+
+    Shortcut {
+        sequence: "Ctrl+K"
+        onActivated: commandPalette.open()
+    }
+
+    CommandPalette {
+        id: commandPalette
+        onRun: command => window.runCommand(command)
+    }
+
+    Component.onCompleted: {
+        if (paletteText) commandPalette.openWith(paletteText)
+        if (runText) {
+            const command = Service.parseCommand(runText)
+            if (command.error) say(command.error)
+            else runCommand(command)
+        }
     }
 
     // Turns a service result into a short message, or `success` if all went well.
@@ -148,6 +196,36 @@ ApplicationWindow {
 
             RowLayout {
                 Layout.fillWidth: true
+                spacing: 16
+                Button {
+                    id: paletteButton
+                    Layout.fillWidth: true
+                    Layout.maximumWidth: 520
+                    implicitHeight: 44
+                    leftPadding: 16
+                    rightPadding: 12
+                    hoverEnabled: true
+                    Accessible.name: "Search or type a command, Control K"
+                    onClicked: commandPalette.open()
+                    contentItem: RowLayout {
+                        spacing: 12
+                        Text { Layout.fillWidth: true; text: "Search or type a command…"; color: Theme.muted; elide: Text.ElideRight }
+                        Rectangle {
+                            implicitWidth: kbd.implicitWidth + 16
+                            implicitHeight: 22
+                            radius: 6
+                            color: "transparent"
+                            border.color: Qt.rgba(0.62, 0.71, 0.84, 0.35)
+                            Text { id: kbd; anchors.centerIn: parent; text: "Ctrl K"; color: Theme.muted; font.pixelSize: 12 }
+                        }
+                    }
+                    background: Rectangle {
+                        radius: 12
+                        color: Qt.rgba(4 / 255, 10 / 255, 22 / 255, 0.55)
+                        border.color: paletteButton.hovered || paletteButton.visualFocus ? Theme.accent : Qt.rgba(0.36, 0.88, 0.9, 0.22)
+                        border.width: paletteButton.visualFocus ? 2 : 1
+                    }
+                }
                 Item { Layout.fillWidth: true }
                 Rectangle {
                     id: statusPill
@@ -186,10 +264,12 @@ ApplicationWindow {
                     onReport: (result, success) => window.report(result, success)
                 }
                 RulesScreen {
+                    id: rulesScreen
                     now: window.now
                     onReport: (result, success) => window.report(result, success)
                 }
                 LockScreen {
+                    id: lockScreen
                     now: window.now
                     onLocked: window.screen = "now"
                     onReport: (result, success) => window.report(result, success)

@@ -35,4 +35,8 @@ std::optional<TimePoint> parse_time(std::string_view text);
 std::string format_clock(int minutes);
 std::optional<int> parse_clock(std::string_view text);
 
+// A length of time as people type it: "25m", "2h", "1h30m", or plain minutes ("90").
+// nullopt if it's anything else, or zero.
+std::optional<Minutes> parse_duration(std::string_view text);
+
 }  // namespace sirenproof::core

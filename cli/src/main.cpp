@@ -15,6 +15,7 @@
 #include "sirenproof/core/json_codec.hpp"
 #include "sirenproof/core/policy.hpp"
 #include "sirenproof/core/state_json.hpp"
+#include "sirenproof/core/time.hpp"
 #include "sirenproof/core/version.hpp"
 #include "sirenproof/platform/files.hpp"
 #include "sirenproof/platform/paths.hpp"
@@ -76,21 +77,8 @@ std::string local(const Json& iso) {
 }
 
 std::optional<int> parse_minutes(std::string_view text) {  // "25m", "2h", "1h30m", "90"
-    int total = 0;
-    int number = -1;
-    for (const char c : text) {
-        if (c >= '0' && c <= '9') {
-            number = (number < 0 ? 0 : number) * 10 + (c - '0');
-            if (number > 100'000) return std::nullopt;
-        } else if ((c == 'h' || c == 'm') && number >= 0) {
-            total += c == 'h' ? number * 60 : number;
-            number = -1;
-        } else {
-            return std::nullopt;
-        }
-    }
-    if (number >= 0) total += number;
-    return total > 0 ? std::optional(total) : std::nullopt;
+    const auto length = core::parse_duration(text);
+    return length ? std::optional(static_cast<int>(length->count())) : std::nullopt;
 }
 
 bool looks_like_program(std::string_view text) {

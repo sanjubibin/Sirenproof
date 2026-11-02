@@ -38,6 +38,12 @@ Flickable {
         return `Session until ${Theme.clock(Date.parse(r.when.to))}`
     }
 
+    // Runs the rule tester on `subject` and scrolls to it (the palette's "check").
+    function test(subject) {
+        tester.text = subject
+        root.contentY = Math.max(0, Math.min(tester.mapToItem(layout, 0, 0).y - 120, root.contentHeight - root.height))
+    }
+
     function tone(strength) {
         return strength === "lock" ? Theme.accent : strength === "nudge" ? Theme.amber : Theme.muted
     }

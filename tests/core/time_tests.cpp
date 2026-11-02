@@ -47,3 +47,16 @@ TEST_CASE("clock times are HH:MM with 24:00 allowed as an end", "[time]") {
     CHECK(format_clock(540) == "09:00");
     CHECK(format_clock(kMinutesPerDay) == "24:00");
 }
+
+TEST_CASE("parse_duration reads lengths as people type them", "[time]") {
+    CHECK(parse_duration("25m") == Minutes{25});
+    CHECK(parse_duration("2h") == Minutes{120});
+    CHECK(parse_duration("1h30m") == Minutes{90});
+    CHECK(parse_duration("90") == Minutes{90});
+    CHECK_FALSE(parse_duration(""));
+    CHECK_FALSE(parse_duration("0m"));
+    CHECK_FALSE(parse_duration("h"));
+    CHECK_FALSE(parse_duration("2 h"));
+    CHECK_FALSE(parse_duration("reddit.com"));
+    CHECK_FALSE(parse_duration("9999999m"));
+}

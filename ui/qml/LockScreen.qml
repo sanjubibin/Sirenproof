@@ -13,17 +13,39 @@ Flickable {
     signal report(var result, string success)
 
     property var sets: ({ video: true, social: true, games: false })
+    property var extra: []      // targets beyond the ready-made sets, e.g. from the command palette
     property int minutes: 120
     property string method: "wait"
 
-    readonly property var setDefs: [
-        { id: "video", label: "Video", detail: "YouTube home, feed and Shorts", targets: ["youtube.com/", "youtube.com/feed", "youtube.com/shorts"] },
-        { id: "social", label: "Social", detail: "Reddit, X, Instagram", targets: ["reddit.com", "x.com", "instagram.com"] },
-        { id: "games", label: "Games", detail: "Steam, Discord", targets: ["app:steam.exe", "app:discord.exe"] }
-    ]
+    readonly property var setDefs: Service.readyLists
+    readonly property var lengths: [{ m: 25, label: "25 min" }, { m: 60, label: "1 h" }, { m: 120, label: "2 h" }, { m: 240, label: "4 h" }]
     readonly property var targets: setDefs.filter(s => sets[s.id]).reduce((all, s) => all.concat(s.targets), [])
+                                          .concat(extra.filter(t => !setDefs.some(s => sets[s.id] && s.targets.includes(t))))
+    readonly property var extraSites: extra.filter(t => !t.includes(":"))
+    readonly property var extraApps: extra.filter(t => t.includes(":")).map(t => t.slice(t.indexOf(":") + 1))
     readonly property bool lockActive: (Service.status.locked || []).length > 0
     readonly property bool wide: width >= 820
+
+    // Fills the screen in from the command palette. Nothing starts until the button is held.
+    function prefill(lists, others, length, unlock) {
+        if (lists.length || others.length) {
+            const chosen = {}
+            for (const id of lists) chosen[id] = true
+            sets = chosen
+            extra = others
+        }
+        if (length > 0) minutes = length
+        if (unlock) method = unlock
+        contentY = 0
+    }
+
+    function lengthLabel(m) {
+        return m < 60 ? `${m} min` : m % 60 === 0 ? `${m / 60} h` : `${Math.floor(m / 60)} h ${m % 60} min`
+    }
+
+    function sentenceList(names) {
+        return names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0]
+    }
 
     contentHeight: layout.implicitHeight
     clip: true
@@ -91,11 +113,42 @@ Flickable {
                             required property var modelData
                             text: modelData.label
                             detail: modelData.detail
-                            chosen: root.sets[modelData.id]
+                            chosen: !!root.sets[modelData.id]
                             onClicked: {
                                 const next = Object.assign({}, root.sets)
                                 next[modelData.id] = !next[modelData.id]
                                 root.sets = next
+                            }
+                        }
+                    }
+                }
+                Flow {
+                    Layout.fillWidth: true
+                    visible: root.extra.length > 0
+                    spacing: 8
+                    Repeater {
+                        model: root.extra
+                        delegate: Rectangle {
+                            id: extraChip
+                            required property string modelData
+                            width: extraRow.implicitWidth + 18
+                            height: 34
+                            radius: 17
+                            color: Theme.accentSoft
+                            border.color: Theme.edgeStrong
+                            RowLayout {
+                                id: extraRow
+                                anchors.verticalCenter: parent.verticalCenter
+                                x: 12
+                                spacing: 2
+                                Text { text: extraChip.modelData; color: Theme.text; font.pixelSize: 14 }
+                                Button {
+                                    implicitWidth: 28; implicitHeight: 28
+                                    Accessible.name: `Leave out ${extraChip.modelData}`
+                                    onClicked: root.extra = root.extra.filter(t => t !== extraChip.modelData)
+                                    contentItem: Text { text: "×"; color: Theme.muted; font.pixelSize: 16; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                                    background: Rectangle { radius: 14; color: parent.hovered ? Qt.rgba(1, 1, 1, 0.06) : "transparent" }
+                                }
                             }
                         }
                     }
@@ -106,14 +159,16 @@ Flickable {
                 Layout.fillWidth: true
                 spacing: 10
                 Text { text: "FOR HOW LONG"; color: Theme.muted; font.pixelSize: 12; font.weight: Font.DemiBold; font.letterSpacing: 1.6 }
-                RowLayout {
+                Flow {
+                    Layout.fillWidth: true
                     spacing: 10
                     Repeater {
-                        model: [{ m: 25, label: "25 min" }, { m: 60, label: "1 h" }, { m: 120, label: "2 h" }, { m: 240, label: "4 h" }]
+                        // A length typed in the palette shows as one more choice.
+                        model: root.lengths.some(l => l.m === root.minutes) ? root.lengths
+                                                                             : root.lengths.concat([{ m: root.minutes, label: root.lengthLabel(root.minutes) }])
                         delegate: Choice {
                             required property var modelData
-                            Layout.fillWidth: false
-                            Layout.preferredWidth: 96
+                            width: Math.max(96, implicitWidth)
                             text: modelData.label
                             chosen: root.minutes === modelData.m
                             onClicked: root.minutes = modelData.m
@@ -168,13 +223,14 @@ Flickable {
 
             Text { text: "BEFORE YOU COMMIT"; color: Theme.muted; font.pixelSize: 12; font.weight: Font.DemiBold; font.letterSpacing: 1.6 }
             Repeater {
-                model: [
-                    { text: `Locks until ${Theme.clock(root.now + root.minutes * 60000)}`, tone: Theme.text },
-                    root.sets.video ? { text: "Blocks YouTube's home page, feed and Shorts. Videos still play.", tone: Theme.text } : null,
-                    root.sets.social ? { text: "Blocks reddit.com, x.com and instagram.com", tone: Theme.text } : null,
-                    root.sets.games ? { text: "Closes Steam and Discord. Anything already open gets 10 seconds to save.", tone: Theme.amber } : null,
-                    { text: "Browsers without Sirenproof's extension close after a warning.", tone: Theme.muted }
-                ].filter(item => item !== null)
+                model: [{ text: `Locks until ${Theme.clock(root.now + root.minutes * 60000)}`, tone: Theme.text }]
+                    .concat(root.setDefs.filter(s => root.sets[s.id]).map(s => ({
+                        text: s.effect,
+                        tone: s.targets.some(t => t.startsWith("app:")) ? Theme.amber : Theme.text
+                    })))
+                    .concat(root.extraSites.length ? [{ text: `Blocks ${root.sentenceList(root.extraSites)}.`, tone: Theme.text }] : [])
+                    .concat(root.extraApps.length ? [{ text: `Closes ${root.sentenceList(root.extraApps)}. Anything already open gets 10 seconds to save.`, tone: Theme.amber }] : [])
+                    .concat([{ text: "Browsers without Sirenproof's extension close after a warning.", tone: Theme.muted }])
                 delegate: Rectangle {
                     required property var modelData
                     Layout.fillWidth: true

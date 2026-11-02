@@ -25,6 +25,12 @@ milestone, newest first. What comes next is in the [roadmap](ROADMAP.md).
       for the rule's delay.
     - **Start a lock:** ready-made sets, length, unlock method, goal and a preview, then hold for two
       seconds to commit.
+    - **Command palette** (Ctrl+K, or the bar at the top): type `lock youtube 2h`, `block reddit 25m`,
+      `nudge twitch 1h`, `break`, `check reddit.com` or `rules`. It uses the command line's words, with
+      a few shortcuts (a bare length, list names like `video`, and names like `youtube`), shows what a
+      command will do before you press Enter, and checks addresses as you type. A lock fills in the
+      Start a lock screen, so it's still held to commit.
+    - `--palette <text>` opens the palette with that text, and `--run <command>` does a command at start.
     - Reconnects to the service by itself, and honours Windows' "show animations" setting.
   - `sirenproof-tray.exe`, the tray icon (plain Win32, 1.6 MB of private memory):
     - Its tooltip says whether a lock holds and until when.
@@ -79,6 +85,8 @@ milestone, newest first. What comes next is in the [roadmap](ROADMAP.md).
 
 ### Changed
 
+- The ready-made lists (Video, Social, Games) are defined once in the core, for the lock screen and the
+  palette, and the command line and the palette read lengths ("1h30m") the same way.
 - Messages from the service show times on your PC's clock instead of in UTC.
 - A rule's schedule can be read and written on its own (`when_from_json`, `when_to_json`), and
   `WeeklySchedule::from_minutes` writes any set of minutes back as the fewest readable windows.

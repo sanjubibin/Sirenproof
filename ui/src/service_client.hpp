@@ -22,6 +22,7 @@ class ServiceClient : public QObject {
     Q_PROPERTY(QVariantMap status READ status NOTIFY changed)
     Q_PROPERTY(QVariantList rules READ rules NOTIFY changed)
     Q_PROPERTY(bool animations READ animations CONSTANT)
+    Q_PROPERTY(QVariantList readyLists READ readyLists CONSTANT)
 
 public:
     explicit ServiceClient(std::wstring pipe, QObject* parent = nullptr);
@@ -32,10 +33,14 @@ public:
     QVariantList rules() const { return rules_; }
     // Windows' "Animation effects" setting; off means no ambient motion.
     bool animations() const { return animations_; }
+    // Video, Social, Games: [{id, label, detail, effect, targets}].
+    QVariantList readyLists() const;
 
     Q_INVOKABLE void refresh();
 
     Q_INVOKABLE QVariantMap startLock(const QVariantList& targets, int minutes, const QString& unlock, const QString& goal);
+    // A new Block or Nudge rule; `minutes` 0 means until you remove it.
+    Q_INVOKABLE QVariantMap addRule(const QVariantList& targets, int minutes, const QString& strength);
     Q_INVOKABLE QVariantMap addTarget(const QString& rule, const QString& target);
     Q_INVOKABLE QVariantMap removeTarget(const QString& rule, const QString& target);
     Q_INVOKABLE QVariantMap setStrength(const QString& rule, const QString& strength);
@@ -56,6 +61,10 @@ public:
     // hours it doesn't touch keep their exact minutes. It returns null if no hour would be left on.
     Q_INVOKABLE QVariantList weekHours(const QVariant& when) const;
     Q_INVOKABLE QVariant paintHours(const QVariant& when, const QVariantList& hours, bool on) const;
+
+    // A command from the palette, understood but not run: {kind, lists, targets, minutes, strength,
+    // unlock, subject, screen}, or {error, known} (known is false when it isn't a command at all).
+    Q_INVOKABLE QVariantMap parseCommand(const QString& text) const;
 
 signals:
     void changed();

@@ -24,7 +24,7 @@ Where Sirenproof stands and what comes next. The reasoning behind each step is i
 - [x] Main window: Start a lock (ready-made sets, unlock method, goal, preview, hold to lock)
 - [x] Tray icon (status, open window, break, notifications)
 - [x] Schedule painter: drag across the week to set when a rule applies
-- [ ] Command palette (Ctrl+K): type `lock youtube 2h` or `break 5m`
+- [x] Command palette (Ctrl+K): type `lock youtube 2h`, `block reddit 25m` or `check twitch.tv`
 - [ ] Ready-made lists in the Rules screen
 - [ ] The typing and friend-code unlock challenges, polished
 - [ ] "Lock down this PC" setup: a standard account for daily use ([plan §3.8](docs/PLAN.md#38-lock-down-this-pc))
