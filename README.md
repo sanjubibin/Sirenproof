@@ -28,7 +28,14 @@ lecturing you.
   service, the secure pipe, the signed state, hosts-file blocking with tamper repair, and closing
   blocked programs; the `sirenproof` command line drives it. The acceptance test in a virtual machine
   ([docs/TESTING.md](docs/TESTING.md)) is still to run.
-- **M3 (browser extension):** next.
+- **M3 (browser extension):** built and tested on a development PC.
+  - The Chrome/Edge extension asks the service about every page, including YouTube-style in-page
+    navigation, and shows the block or pause page.
+  - A relay connects the extension to the service.
+  - During locks, private windows and DNS-over-HTTPS are turned off by policy, and browsers without
+    the extension are closed after a warning.
+  - The browser part of the virtual-machine test is still to run.
+- **M4 (interface):** next, starting with a design prototype to approve.
 
 See the [plan](docs/PLAN.md#8-milestones) for the full roadmap.
 
@@ -117,6 +124,8 @@ core/      Pure C++ logic (rules, matching, schedules, locks, trusted clock, sta
            No Windows headers; fully unit-tested.
 platform/  The Windows layer: files, signed state store, hosts file, pipe, processes, clock
 service/   sirenproof-service.exe: the background service
+host/      sirenproof-host.exe: the relay between the browser extension and the service
+extension/ The Chrome / Edge extension (Manifest V3, no build step) and its tests
 cli/       sirenproof.exe: the command line
 tests/     Unit tests (core) and integration tests (platform)
 tools/     dev-reset.ps1: undo everything Sirenproof changed, for developers

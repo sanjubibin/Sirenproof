@@ -3,7 +3,8 @@
 > Tie yourself to the mast.
 
 **Status:** agreed 1 November 2026. M0 (foundation) and M1 (rule engine) are done. M2 (service and
-enforcement) is built; its virtual-machine acceptance test ([TESTING.md](TESTING.md)) is still to run.
+enforcement) and M3 (browsers) are built; their virtual-machine acceptance tests ([TESTING.md](TESTING.md))
+are still to run.
 Evidence and sources:
 [RESEARCH.md](RESEARCH.md).
 References like [U5], [C2] or [T13] point to that document.
@@ -146,6 +147,7 @@ These make the tool strong but never system-breaking:
 | Breaks | Emergency passes | |
 | Chrome and Edge extension | Per-app network blocking and DNS-over-TLS/QUIC blocking (WFP) | |
 | Tray app, CLI, installer | Local stats ("blocked 23 times today") | |
+| "Lock down this PC" setup (§3.8) | | |
 | | Separate rules per Windows user | |
 
 ### 3.7 Interface
@@ -215,6 +217,24 @@ How the Qt Quick window stays fast:
 **Design before code.** M4 starts with a style guide and a clickable prototype of the main screens. The
 look is agreed before any screen is built in QML.
 
+### 3.8 Lock down this PC
+
+The service already runs as SYSTEM, above any administrator. But no legitimate program can stop an
+administrator who is determined to remove it: Safe Mode, taking ownership of files, reinstalling
+Windows. Software that tries uses rootkit techniques and gets removed as malware (principle 10).
+
+The strongest protection is therefore for the person not to be an administrator day to day. A guided
+setup, offered after the first lock and always available later, does this:
+
+1. Checks whether the everyday Windows account is an administrator.
+2. Helps create a separate administrator account.
+3. Has its password handed to a trusted person, or written down and sealed away, like a friend code.
+4. Switches the everyday account to a standard one.
+
+With a standard account, stopping or killing the service, editing the hosts file, uninstalling,
+changing the clock and getting into Safe Mode all need the administrator password. The setup explains
+each step and can be undone with that password. Sirenproof never changes accounts silently.
+
 ## 4. Architecture
 
 ```mermaid
@@ -257,7 +277,7 @@ applies it. Everything else is a view or a messenger. Killing the tray app chang
 | `sirenproof-tray.exe` | C++ + Win32 / Direct2D | Always-on and tiny. Tray icon and menu, notifications, the Nudge pause overlay for apps. Starts the main window when asked. |
 | `sirenproof-ui.exe` | C++ + Qt Quick (QML) | The full interface (§3.7): mast ring, rule editor, lists, schedule painter, rule tester, lock setup with preview, unlock challenges, pending changes. Runs only while open. |
 | `sirenproof-host.exe` | C++ | Tiny relay between the extension (stdin/stdout) and the pipe. Validates every message. |
-| `extension/` | JavaScript (Manifest V3), no build step | Page-level rules through `declarativeNetRequest`; single-page-app navigation through `webNavigation.onHistoryStateUpdated`; block and pause page; heartbeat. |
+| `extension/` | JavaScript (Manifest V3), no build step | Asks the service about every page load (`webNavigation.onBeforeNavigate`) and in-page navigation (`onHistoryStateUpdated`), so all matching stays in one place, the C++ core. Shows the block and pause page. Sends a heartbeat. `declarativeNetRequest` rules are a later optimisation if pages flash before the block appears. |
 | `installer/` | Inno Setup | Installs the service, registers the native messaging host and sets up the data folder with locked-down permissions. Its uninstall refuses while a lock is active. |
 
 ### 4.2 Enforcement layers
@@ -265,7 +285,7 @@ applies it. Everything else is a view or a messenger. Killing the tray app chang
 | Layer | Catches | Misses | Arrives |
 |---|---|---|---|
 | **Hosts file** (one section, between `# BEGIN Sirenproof` and `# END Sirenproof` markers) | Whole domains, in every app | Single pages. Resolvers that bypass the OS (handled by the policies row) | M2 |
-| **Browser extension** | Single pages, YouTube-style in-page navigation, the Nudge pause page | Browsers without it (handled by heartbeat and app rules) | M3 |
+| **Browser extension** | Single pages, YouTube-style in-page navigation, the Nudge pause page | Browsers without it. During a lock, the service's browser guard closes them after a warning and a 60 s grace period. A heartbeat only counts if the service traces it, through the process tree, to a real browser that started the relay | M3 |
 | **Browser policies** (Chrome/Edge registry) | Turn off DNS-over-HTTPS; turn off Incognito/InPrivate during a lock; stop the extension being removed (needs a store listing) [T17]–[T19] | Unmanaged-PC quirks, to verify in M3 [T21] | M3 |
 | **Process watcher** | Apps and games, within about a second of launch. A sweep every second, and only while a program rule is active, so it costs nothing otherwise. (ETW was the first idea, but its events arrive 1–3 s late [T24] and it needs admin, so it's kept as a later optimisation.) | Blocking before launch (would need a kernel driver; we won't) | M2 |
 | **WFP filters** | Per-app network access; DNS-over-TLS, QUIC, known DNS-over-HTTPS endpoints | — | v1.x |
@@ -298,8 +318,9 @@ applies it. Everything else is a view or a messenger. Killing the tray app chang
 ### 5.1 Against your own impulses (tamper resistance)
 
 **Goal:** defeat *impulsive* bypasses, the kind that take seconds or minutes. Without a kernel driver,
-someone with admin rights and hours to spare can always win [T33][T35]. We say so openly, and recommend
-using a standard (non-admin) Windows account day to day.
+someone with admin rights and hours to spare can always win [T33][T35]. We say so openly. The "Lock
+down this PC" setup (§3.8) moves the everyday account to a standard one, which closes almost every
+bypass below.
 
 | Bypass attempt | Response |
 |---|---|
@@ -401,8 +422,8 @@ Each milestone ends with something that runs, and a clear "done when".
 | **M0** | Foundation | Repo skeleton, CMake presets, hardening flags, `core` with first tests, CI, LICENSE, README, CONTRIBUTING, SECURITY.md. | `ctest` passes locally and in GitHub Actions. |
 | **M1** | Core engine (no system changes) | Rule model and JSON; domain, page and app matching; schedules; Nudge/Block/Lock state machine; tighten-now / loosen-later rules; trusted clock; unlock methods. CLI `check` and `plan` commands print what *would* be blocked. | Unit tests cover loosen delays, lock expiry, and simulated clock jumps and reboots. |
 | **M2** | Service and enforcement | Service install and run; secure pipe; state with integrity check; hosts section with watcher; process watcher, app identity and close-with-warning; clean uninstall; CLI talks to the service; `tools/dev-reset.ps1`. *Built and integration-tested; VM acceptance test pending.* | In a VM, a 25-minute lock on `youtube.com` and Steam survives a hosts edit, killing the service, a clock change and a reboot. Uninstalling when unlocked leaves nothing behind. |
-| **M3** | Browsers | Extension and relay; page rules; YouTube in-page navigation; block and pause pages; heartbeat with grace period; DNS-over-HTTPS and private windows turned off by policy during a lock. | Shorts and the feed are blocked while `/watch` works. Incognito is unavailable during a lock. A disabled extension leads to warning, grace period, then closed windows with an explanation. |
-| **M4** | Interface | Style guide and clickable prototype approved first. Win32 tray and Direct2D pause overlay. Qt Quick main window: mast ring, command palette, schedule painter, rule tester, ready-made lists, lock setup with hold-to-commit and preview, unlock challenges, pending changes, breaks. | Two or three non-technical people set up a scheduled block without the CLI or any help. The §3.7 budgets are measured and met. |
+| **M3** | Browsers | Extension and relay; page rules; YouTube in-page navigation; block and pause pages; heartbeat with grace period; DNS-over-HTTPS and private windows turned off by policy during a lock (Chrome, Edge, Brave), with the previous values restored afterwards. *Built and integration-tested; VM acceptance test pending.* | Shorts and the feed are blocked while `/watch` works. Incognito is unavailable during a lock. A disabled extension leads to warning, grace period, then closed windows with an explanation. |
+| **M4** | Interface | Style guide and clickable prototype approved first. Win32 tray and Direct2D pause overlay. Qt Quick main window: mast ring, command palette, schedule painter, rule tester, ready-made lists, lock setup with hold-to-commit and preview, unlock challenges, pending changes, breaks. "Lock down this PC" setup (§3.8). | Two or three non-technical people set up a scheduled block without the CLI or any help. The §3.7 budgets are measured and met. |
 | **M5** | v1.0 release | Installer (refuses uninstall during a lock), signing, Chrome Web Store and Edge Add-ons listings, Defender testing, threat-model review, docs, checksums. | Signed installer on GitHub Releases. Install → use → uninstall passes on a fresh VM. |
 
 M0 and M1 are pure C++ logic and make no system changes. They're the safest place to start, and they

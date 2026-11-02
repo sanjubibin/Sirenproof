@@ -40,6 +40,39 @@ file called `dev-unlock` in the data folder: debug builds then drop every rule.
 > Run these commands from PowerShell or `cmd`, not Git Bash. Git Bash rewrites arguments such as pipe
 > names (`\\.\pipe\...`) before the program sees them.
 
+## Trying the browser extension safely
+
+The extension only blocks pages. In console mode the service still uses its stand-in hosts file and
+stand-in browser policies, and it never closes a browser unless you pass `--guard-browsers`.
+
+1. Tell Chrome, Edge and Brave where the relay is, for your Windows account only:
+
+   ```bash
+   build/debug/bin/sirenproof-host.exe register --user
+   ```
+
+   `unregister --user` undoes it.
+
+2. Load the extension. Open `chrome://extensions` (or `edge://extensions`), turn on **Developer mode**,
+   choose **Load unpacked** and pick the `extension` folder. Its id should be
+   `cgpgilkcgaojdaclgkllhndfgdphgdje`, which the relay checks.
+3. Start the service in console mode (`build/debug/bin/sirenproof-service.exe console`). It uses the
+   normal pipe name, which is the one the relay talks to.
+4. From another terminal:
+
+   ```bash
+   build/debug/bin/sirenproof.exe block youtube.com/shorts youtube.com/feed --for 25m --goal "Finish the report"
+   build/debug/bin/sirenproof.exe block reddit.com --nudge --for 25m
+   ```
+
+5. Check that:
+   - `youtube.com/shorts/...` and the feed show the block page;
+   - a video (`/watch?v=...`) plays;
+   - moving from a video to Shorts inside YouTube is caught too;
+   - Reddit shows the pause page, and **Continue** becomes available after 15 seconds.
+
+The extension's own tests run under Node: `node --test extension/tests/background.test.mjs`.
+
 ## Acceptance test in a virtual machine (milestone M2)
 
 The plan's goal for M2: a 25-minute lock on `youtube.com` and a game survives a hosts edit, killing
@@ -87,6 +120,25 @@ Then try each bypass. Write down what happens:
 | 11 | `sirenproof-service uninstall --remove-data` | Done. `sc query Sirenproof` says the service doesn't exist; the hosts file has no Sirenproof section; `C:\ProgramData\Sirenproof` is gone |
 
 Finally, restore the **clean** snapshot.
+
+### Browser part (milestone M3)
+
+`install` also registers the relay with Chrome, Edge and Brave. Until the extension is in the stores
+(M5), load it unpacked in each browser you test, as described above. Start from the **clean** snapshot:
+
+```bat
+sirenproof-service install
+sirenproof block youtube.com/shorts youtube.com/feed youtube.com/ --for 25m --lock --id yt --goal "Revise chapter 3"
+```
+
+| # | Try this | Expected |
+|---|---|---|
+| 12 | Open YouTube's home page, the feed and a Short | The block page, with your goal and the end time |
+| 13 | Open a video (`/watch?v=...`), then click into Shorts from it | The video plays; the Short is blocked |
+| 14 | Open an Incognito (Chrome) or InPrivate (Edge) window | Not available; the browser says it's managed. Back to normal when the lock ends |
+| 15 | Turn the extension off in `chrome://extensions` | `sirenproof status` lists the browser as unprotected; about 60 seconds later its windows close |
+| 16 | Open Firefox, if installed | Closed after the same grace period (the extension isn't available for it yet) |
+| 17 | After the lock: `sirenproof-service uninstall` | The browser policies are back as they were, and the relay is unregistered |
 
 ### If something goes wrong
 

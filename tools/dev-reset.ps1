@@ -10,7 +10,9 @@
       1. stops the Sirenproof service (ending its process if it won't stop) and removes it;
       2. removes Sirenproof's section from the hosts file, after saving a copy next to it;
       3. clears the DNS cache;
-      4. with -RemoveData, deletes %ProgramData%\Sirenproof (rules, logs and key).
+      4. puts back any browser policies Sirenproof changed during a lock;
+      5. removes the browser extension's native messaging host registration;
+      6. with -RemoveData, deletes %ProgramData%\Sirenproof (rules, logs and key).
 
     Run it from an administrator PowerShell. Add -WhatIf to see what it would do.
 
@@ -64,7 +66,39 @@ if ($PSCmdlet.ShouldProcess('DNS cache', 'Clear')) {
     & ipconfig.exe /flushdns | Out-Null
 }
 
-# 4. Data
+# 4. Browser policies Sirenproof set during locks, put back from its ledger
+$ledger = Join-Path $env:ProgramData 'Sirenproof\policies.json'
+if (Test-Path $ledger) {
+    if ($PSCmdlet.ShouldProcess('browser policies', 'Restore what was there before Sirenproof')) {
+        foreach ($entry in (Get-Content $ledger -Raw | ConvertFrom-Json).values) {
+            $key = 'HKLM:\' + $entry.key
+            if ($null -eq $entry.previous) {
+                Remove-ItemProperty -Path $key -Name $entry.name -ErrorAction SilentlyContinue
+                continue
+            }
+            $hex = [string]$entry.previous.data
+            $bytes = [byte[]]::new($hex.Length / 2)
+            for ($i = 0; $i -lt $bytes.Length; $i++) { $bytes[$i] = [Convert]::ToByte($hex.Substring($i * 2, 2), 16) }
+            if ($entry.previous.type -eq 4) {
+                Set-ItemProperty -Path $key -Name $entry.name -Type DWord -Value ([BitConverter]::ToInt32($bytes, 0))
+            } else {
+                Set-ItemProperty -Path $key -Name $entry.name -Type String -Value ([Text.Encoding]::Unicode.GetString($bytes).TrimEnd([char]0))
+            }
+        }
+        Remove-Item -LiteralPath $ledger -Force
+        Write-Host 'Restored the browser policies.'
+    }
+}
+
+# 5. The native messaging host registration, for every browser and both scopes
+foreach ($root in 'HKLM:', 'HKCU:') {
+    foreach ($browser in 'Google\Chrome', 'Microsoft\Edge', 'BraveSoftware\Brave-Browser') {
+        $key = "$root\Software\$browser\NativeMessagingHosts\com.sirenproof.host"
+        if ((Test-Path $key) -and $PSCmdlet.ShouldProcess($key, 'Remove')) { Remove-Item -Path $key -Force }
+    }
+}
+
+# 6. Data
 $data = Join-Path $env:ProgramData 'Sirenproof'
 if ($RemoveData -and (Test-Path $data)) {
     if ($PSCmdlet.ShouldProcess($data, 'Delete')) {
