@@ -17,7 +17,12 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(CompilerWarnings)
 include(Hardening)
 
+# All programs side by side: the CLI only trusts a service that runs from its own folder.
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+
 add_subdirectory(core)
+add_subdirectory(platform)
+add_subdirectory(service)
 add_subdirectory(cli)
 
 if(SIRENPROOF_BUILD_TESTS)

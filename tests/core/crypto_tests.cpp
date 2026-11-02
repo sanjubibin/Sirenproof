@@ -18,6 +18,22 @@ TEST_CASE("sha256 matches the FIPS 180-4 test vectors", "[crypto]") {
           "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0");
 }
 
+TEST_CASE("hmac_sha256 matches the RFC 4231 test vectors", "[crypto]") {
+    const std::vector<std::uint8_t> key1(20, 0x0b);
+    CHECK(to_hex(hmac_sha256(key1, "Hi There")) ==
+          "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7");
+
+    const std::string jefe = "Jefe";
+    const std::vector<std::uint8_t> key2(jefe.begin(), jefe.end());
+    CHECK(to_hex(hmac_sha256(key2, "what do ya want for nothing?")) ==
+          "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843");
+
+    // Test case 6: a key longer than the block size is hashed first.
+    const std::vector<std::uint8_t> key6(131, 0xaa);
+    CHECK(to_hex(hmac_sha256(key6, "Test Using Larger Than Block-Size Key - Hash Key First")) ==
+          "60e431591ee0b67f0d8a26aacbf5b77f8e0bc6213728c5140546040f0ee37f54");
+}
+
 TEST_CASE("hex encoding round-trips and rejects junk", "[crypto]") {
     const std::vector<std::uint8_t> bytes = {0x00, 0x7f, 0x80, 0xff};
     CHECK(to_hex(bytes) == "007f80ff");

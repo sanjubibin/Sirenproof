@@ -3,20 +3,16 @@
 #include <array>
 #include <cstdint>
 #include <limits>
-#include <nlohmann/json.hpp>
 #include <set>
-#include <stdexcept>
+
+#include "sirenproof/core/json_codec.hpp"
 
 namespace sirenproof::core {
 
 namespace {
 
-using json = nlohmann::ordered_json;
-
-class ParseError : public std::runtime_error {
-public:
-    using std::runtime_error::runtime_error;
-};
+using json = Json;
+using ParseError = JsonError;
 
 constexpr std::array<std::string_view, 7> kDayNames = {"mon", "tue", "wed", "thu", "fri", "sat", "sun"};
 
@@ -309,6 +305,7 @@ State read_state(const json& root) {
         c.finish();
         state.clock = clock;
     }
+    if (r.has("local_offset_minutes")) state.local_offset = Minutes{r.integer("local_offset_minutes", -14 * 60, 14 * 60)};
     if (r.has("next_id")) state.next_id = r.unsigned_integer("next_id");
     r.finish();
     return state;
@@ -382,6 +379,11 @@ json write_pending(const PendingChange& p) {
 
 }  // namespace
 
+Rule rule_from_json(const Json& value, const std::string& path) { return read_rule(value, path); }
+Json rule_to_json(const Rule& rule) { return write_rule(rule); }
+Settings settings_from_json(const Json& value, const std::string& path) { return read_settings(value, path); }
+Json settings_to_json(const Settings& settings) { return write_settings(settings); }
+
 std::expected<State, std::string> parse_state(std::string_view json_text) {
     try {
         const json root = json::parse(json_text);
@@ -438,6 +440,7 @@ std::string serialise_state(const State& state) {
                          {"monotonic_ms", state.clock->monotonic.count()},
                          {"boot_id", state.clock->boot_id}};
     }
+    if (state.local_offset) root["local_offset_minutes"] = state.local_offset->count();
     root["next_id"] = state.next_id;
     return root.dump(2) + "\n";
 }

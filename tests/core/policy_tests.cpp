@@ -384,6 +384,19 @@ TEST_CASE_METHOD(Fixture, "time_change_is_safe only allows jumps that loosen not
     CHECK_FALSE(engine.time_change_is_safe(at("2026-11-02T20:30:00Z"), at("2026-11-02T19:00:00Z")));
 }
 
+TEST_CASE_METHOD(Fixture, "A time zone change that would end a scheduled block is not safe", "[policy][tamper]") {
+    Rule work = make_rule("work", {"reddit.com"});
+    work.when = schedule(kWeekdays, 9 * 60, 17 * 60);
+    add(work);
+
+    const TimePoint noon_utc = at("2026-11-02T12:00:00Z");
+    const LocalOffsetFn plus_eight = [](TimePoint) { return Minutes{8 * 60}; };  // 20:00 local: outside
+    const LocalOffsetFn minus_two = [](TimePoint) { return Minutes{-2 * 60}; };  // 10:00 local: inside
+    CHECK_FALSE(engine.offset_change_is_safe(noon_utc, plus_eight));
+    CHECK(engine.offset_change_is_safe(noon_utc, minus_two));
+    CHECK(engine.offset_change_is_safe(at("2026-11-02T20:00:00Z"), plus_eight));  // nothing on to lose
+}
+
 TEST_CASE_METHOD(Fixture, "Jumping the clock past a waiting change is not safe", "[policy][tamper]") {
     add(make_rule("work", {"reddit.com", "x.com"}));
     Rule looser = *engine.find_rule("work");

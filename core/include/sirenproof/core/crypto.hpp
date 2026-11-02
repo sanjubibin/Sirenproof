@@ -17,6 +17,10 @@ using Sha256Digest = std::array<std::uint8_t, 32>;
 Sha256Digest sha256(std::span<const std::uint8_t> data);
 Sha256Digest sha256(std::string_view text);
 
+// RFC 2104 HMAC-SHA-256. Used to notice when the saved state was edited by hand.
+Sha256Digest hmac_sha256(std::span<const std::uint8_t> key, std::span<const std::uint8_t> message);
+Sha256Digest hmac_sha256(std::span<const std::uint8_t> key, std::string_view message);
+
 std::string to_hex(std::span<const std::uint8_t> bytes);
 std::optional<std::vector<std::uint8_t>> from_hex(std::string_view hex);
 

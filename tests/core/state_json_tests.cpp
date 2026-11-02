@@ -49,6 +49,7 @@ State rich_state() {
     s.breaks = {"2026-11-02", 1};
     s.clock = ClockCheckpoint{at("2026-11-02T09:00:00Z"), at("2026-11-02T10:00:00Z"), Millis{123'456},
                               18'000'000'000'000'000'000u};
+    s.local_offset = Minutes{330};
     s.next_id = 42;
     return s;
 }

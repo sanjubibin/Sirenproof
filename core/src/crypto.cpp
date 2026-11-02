@@ -1,5 +1,6 @@
 #include "sirenproof/core/crypto.hpp"
 
+#include <algorithm>
 #include <bit>
 
 namespace sirenproof::core {
@@ -92,6 +93,31 @@ Sha256Digest sha256(std::span<const std::uint8_t> data) {
 
 Sha256Digest sha256(std::string_view text) {
     return sha256(std::span{reinterpret_cast<const std::uint8_t*>(text.data()), text.size()});
+}
+
+Sha256Digest hmac_sha256(std::span<const std::uint8_t> key, std::span<const std::uint8_t> message) {
+    constexpr std::size_t kBlockSize = 64;
+    std::array<std::uint8_t, kBlockSize> block{};
+    if (key.size() > kBlockSize) {
+        const Sha256Digest hashed = sha256(key);
+        std::ranges::copy(hashed, block.begin());
+    } else {
+        std::ranges::copy(key, block.begin());
+    }
+
+    std::vector<std::uint8_t> inner(kBlockSize + message.size());
+    for (std::size_t i = 0; i < kBlockSize; ++i) inner[i] = static_cast<std::uint8_t>(block[i] ^ 0x36u);
+    std::ranges::copy(message, inner.begin() + kBlockSize);
+    const Sha256Digest inner_hash = sha256(inner);
+
+    std::array<std::uint8_t, kBlockSize + 32> outer{};
+    for (std::size_t i = 0; i < kBlockSize; ++i) outer[i] = static_cast<std::uint8_t>(block[i] ^ 0x5cu);
+    std::ranges::copy(inner_hash, outer.begin() + kBlockSize);
+    return sha256(outer);
+}
+
+Sha256Digest hmac_sha256(std::span<const std::uint8_t> key, std::string_view message) {
+    return hmac_sha256(key, std::span{reinterpret_cast<const std::uint8_t*>(message.data()), message.size()});
 }
 
 std::string to_hex(std::span<const std::uint8_t> bytes) {

@@ -98,6 +98,9 @@ struct State {
     std::vector<FriendAttempts> friend_attempts;
     BreakCount breaks;
     std::optional<ClockCheckpoint> clock;
+    // The time zone offset weekly schedules run on. Kept, like trusted time, so that changing the time
+    // zone and rebooting doesn't shift a schedule while it's in force.
+    std::optional<Minutes> local_offset;
     std::uint64_t next_id = 1;
 
     friend bool operator==(const State&, const State&) = default;
@@ -167,6 +170,10 @@ public:
     std::optional<TimePoint> next_change(TimePoint now) const;
     // For TrustedClock: true if jumping from `from` to `to` loosens nothing.
     bool time_change_is_safe(TimePoint from, TimePoint to) const;
+    // True if switching to a different local-time offset (a time zone change) loosens nothing now.
+    bool offset_change_is_safe(TimePoint now, const LocalOffsetFn& proposed) const;
+    // Rules in force at `t`: in their time, not unlocked early and not paused. Sorted by id.
+    std::vector<std::string> enforcing_rules(TimePoint t) const;
 
     // Housekeeping: applies due changes and unlocks, drops anything expired. Call at least at next_change.
     void tick(TimePoint now);
@@ -194,7 +201,6 @@ public:
 private:
     Rule* find_rule_mutable(std::string_view id);
     bool is_paused(const Rule& rule, TimePoint now) const;
-    std::vector<std::string> enforcing_ids(TimePoint t) const;
     bool any_lock_holds(TimePoint now) const;
     void release(const Rule& rule, TimePoint now);
     void forget_rule(std::string_view rule_id);

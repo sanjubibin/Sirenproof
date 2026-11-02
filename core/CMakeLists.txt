@@ -11,6 +11,7 @@ add_library(sirenproof_core STATIC
     src/clock.cpp
     src/crypto.cpp
     src/domain.cpp
+    src/hosts.cpp
     src/policy.cpp
     src/rule.cpp
     src/schedule.cpp
@@ -20,8 +21,9 @@ add_library(sirenproof_core STATIC
     src/url.cpp)
 add_library(Sirenproof::core ALIAS sirenproof_core)
 
+# Public: json_codec.hpp exposes nlohmann::ordered_json to the service's pipe protocol.
 find_package(nlohmann_json 3.11 CONFIG REQUIRED)
-target_link_libraries(sirenproof_core PRIVATE nlohmann_json::nlohmann_json)
+target_link_libraries(sirenproof_core PUBLIC nlohmann_json::nlohmann_json)
 
 target_include_directories(sirenproof_core PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/include"

@@ -202,7 +202,7 @@ std::optional<TimePoint> Engine::next_change(TimePoint now) const {
     return earliest;
 }
 
-std::vector<std::string> Engine::enforcing_ids(TimePoint t) const {
+std::vector<std::string> Engine::enforcing_rules(TimePoint t) const {
     std::vector<std::string> ids;
     for (const Rule& rule : state_.rules) {
         if (is_enforcing(rule, t) && !is_paused(rule, t)) ids.push_back(rule.id);
@@ -213,7 +213,7 @@ std::vector<std::string> Engine::enforcing_ids(TimePoint t) const {
 
 bool Engine::time_change_is_safe(TimePoint from, TimePoint to) const {
     // Everything in force at `from` must still be in force at `to`...
-    if (!std::ranges::includes(enforcing_ids(to), enforcing_ids(from))) return false;
+    if (!std::ranges::includes(enforcing_rules(to), enforcing_rules(from))) return false;
     // ...and jumping forward mustn't bring a waiting loosening or unlock due early.
     if (to > from) {
         const auto skipped = [&](TimePoint t) { return t > from && t <= to; };
@@ -221,6 +221,11 @@ bool Engine::time_change_is_safe(TimePoint from, TimePoint to) const {
         if (std::ranges::any_of(state_.unlock_requests, [&](const auto& u) { return skipped(u.due); })) return false;
     }
     return true;
+}
+
+bool Engine::offset_change_is_safe(TimePoint now, const LocalOffsetFn& proposed) const {
+    const Engine with_proposed(state_, proposed);
+    return std::ranges::includes(with_proposed.enforcing_rules(now), enforcing_rules(now));
 }
 
 // ---------------------------------------------------------------------------------------------------
