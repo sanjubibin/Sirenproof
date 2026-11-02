@@ -3,7 +3,7 @@
 Where Sirenproof stands and what comes next. The reasoning behind each step is in the
 [plan](docs/PLAN.md); what has already changed is in the [changelog](CHANGELOG.md).
 
-*Last updated: 3 November 2026.*
+*Last updated: 3 November 2026 (M4 built and measured).*
 
 ## Milestones
 
@@ -13,7 +13,7 @@ Where Sirenproof stands and what comes next. The reasoning behind each step is i
 | **M1** Rule engine | Rules, schedules, Nudge/Block/Lock, loosen delays, unlock methods, trusted clock | Done |
 | **M2** Service and enforcement | Windows service, secure pipe, signed rules, hosts blocking, closing programs | Built and tested; VM acceptance test pending |
 | **M3** Browsers | Chrome/Edge extension, relay, block and pause pages, browser policies during locks | Built and tested; VM acceptance test pending |
-| **M4** Interface | Main window, tray, pause overlay, "Lock down this PC" setup | **In progress** |
+| **M4** Interface | Main window, tray, pause overlay, "Lock down this PC" setup | Built; budgets met; usability test pending |
 | **M5** v1.0 release | Signed installer, store listings, security review | Planned |
 
 ## Now: M4 interface
@@ -31,8 +31,9 @@ Where Sirenproof stands and what comes next. The reasoning behind each step is i
 - [x] Pause overlay for programs on a Nudge rule (Direct2D)
 - [x] Events from the service, so the tray no longer asks every 15 seconds (the budget asks for no timers
       while nothing is active). The pause overlay needs them too.
-- [ ] Measure every budget in [plan §3.7](docs/PLAN.md#37-interface). So far the tray uses 1.6 MB of
-      private memory (budget 3 MB).
+- [x] Measure every budget in [plan §3.7](docs/PLAN.md#37-interface): all met, with
+      `tools\measure-budgets.ps1` ([results](docs/TESTING.md#interface-budgets-plan-37))
+- [ ] Usability test: two or three non-technical people set up a scheduled block without help
 
 **Done when** two or three non-technical people can set up a scheduled block without the command line
 or any help, and the budgets are met.
@@ -70,6 +71,7 @@ These need a Windows virtual machine; the steps are in [docs/TESTING.md](docs/TE
 - Emergency passes
 - Per-app network blocking, and blocking DNS-over-TLS/QUIC (Windows Filtering Platform)
 - Local stats ("blocked 23 times today"), never leaving the PC
+- Catch programs the moment they start (process-start events), not on the once-a-second check
 - Separate rules per Windows user
 
 **v2 and later**

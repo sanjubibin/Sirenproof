@@ -35,13 +35,13 @@ lecturing you.
   - During locks, private windows and DNS-over-HTTPS are turned off by policy, and browsers without
     the extension are closed after a warning.
   - The browser part of the virtual-machine test is still to run.
-- **M4 (interface):** in progress. The design prototype was approved. Built so far:
+- **M4 (interface):** built, and every speed and memory budget is measured and met. A usability test is
+  still to run. It has:
   - the main window's Now, Rules and Start a lock screens, with hold-to-lock, unlock early, a live
     rule tester, a schedule painter and a command palette (Ctrl+K);
   - the "Lock down this PC" setup, which guides you to a standard account for everyday use;
   - the tray icon, which shows whether a lock holds, opens the window and offers a break;
   - the pause for programs on a Nudge rule, drawn over the screen by the tray.
-  - Still to do: measuring the interface's speed and memory budgets, and a usability test.
 
 See the [roadmap](ROADMAP.md) for what's next and the [changelog](CHANGELOG.md) for what has changed.
 The reasoning behind both is in the [plan](docs/PLAN.md#8-milestones).
@@ -143,7 +143,8 @@ cli/       sirenproof.exe: the command line
 ui/        sirenproof-ui.exe: the main window (Qt Quick); runs only while it's open
 tray/      sirenproof-tray.exe: the tray icon (plain Win32)
 tests/     Unit tests (core) and integration tests (platform)
-tools/     dev-reset.ps1: undo everything Sirenproof changed, for developers
+tools/     For developers: dev-reset.ps1 undoes everything Sirenproof changed; measure-budgets.ps1
+           checks the interface budgets
 examples/  An example rules file
 cmake/     Warning and hardening flags
 docs/      Research, plan and testing guide

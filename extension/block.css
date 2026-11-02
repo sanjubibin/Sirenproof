@@ -65,7 +65,8 @@ body {
   stroke-linecap: round;
   stroke-dasharray: 326.7;   /* 2 * pi * 52 */
   stroke-dashoffset: 0;
-  transition: stroke-dashoffset 1s linear;
+  /* Stepped once a second by block.js, not animated: the GPU can only composite transform and
+     opacity, and anything else would repaint on every frame. */
 }
 
 .pause .ring-fill { stroke: var(--amber); }
@@ -149,5 +150,5 @@ button:disabled { opacity: 0.45; cursor: default; }
 
 @media (prefers-reduced-motion: reduce) {
   .ring-wrap::after { animation: none; }
-  .ring-fill, button { transition: none; }
+  button { transition: none; }
 }

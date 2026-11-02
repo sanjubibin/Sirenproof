@@ -75,6 +75,41 @@ minutes** or **Close Notepad**. In a dry run, closing only logs what it would do
 lists the program as paused while it waits. To see the pause without a service,
 `sirenproof-tray.exe --pause-preview pause.png --elapsed 5` draws it into a file.
 
+## Interface budgets (plan §3.7)
+
+`tools\measure-budgets.ps1` measures every budget against a throwaway console service (dry run, its own
+data folder, a stand-in hosts file and a private pipe) and prints a pass/fail table. The window and the
+pause are measured invisible and click-through, so nothing gets in your way; the tray icon shows for the
+idle minute. Close Sirenproof's own tray first, and build the `release` preset:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\measure-budgets.ps1
+```
+
+Results on 3 November 2026 (release build; Intel Core Ultra 9 285H with Arc 140T graphics, 2880 × 1800,
+Windows 11). A fast laptop: slower PCs are worth measuring too, for example in the test VM.
+
+| Surface | Budget | Measured |
+|---|---|---|
+| Main window | Start ≤ 400 ms | 236 ms (median of 4 warm starts). The first start after a fresh build took 1.46 s, with Windows Defender scanning the new program; a cold start after a reboot isn't measured yet |
+| Main window | Draws only when something changes | 0.7 frames a second while idle (Direct3D 11) |
+| Main window | 60 fps while animating | 60 fps; longest frame 19.8 ms |
+| Tray | ≤ 3 MB | 2.08 MB private (10.4 MB working set, mostly shared Windows code) |
+| Tray | 0% CPU and no timers when idle | 0 ms of CPU in 60 s; no timers |
+| Pause | On screen ≤ 100 ms after the program is caught | 45 ms. Catching it takes up to a second after it starts, as programs are checked once a second |
+| Block page | ≤ 50 KB, no downloaded fonts, animates only transform and opacity | 7.5 KB; none; transform and opacity |
+
+Measuring found two things, both fixed:
+
+- **The pause took 77–191 ms**, most of it starting a GPU device. It's now drawn on the CPU: about 40 ms
+  to the first frame and a few milliseconds a frame after that.
+- **The block page's countdown ring animated `stroke-dashoffset`**, which repaints every frame. It now
+  steps once a second.
+
+The pieces can also be run on their own: `sirenproof-ui.exe --measure <file.json>`,
+`sirenproof-tray.exe --measure-idle <file.json> [--seconds <n>]` and
+`sirenproof-tray.exe --measure-pause <file.json>`.
+
 ## Trying the browser extension safely
 
 The extension only blocks pages. In console mode the service still uses its stand-in hosts file and

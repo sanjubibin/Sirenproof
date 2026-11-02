@@ -4,6 +4,8 @@
 //     --palette opens the command palette with that text; --run does the command as if typed there
 //     (a lock still only fills in the lock screen)
 //   sirenproof-ui --screenshot <file.png> [--screen ...]   render one screen offscreen and exit (development)
+//   sirenproof-ui --measure <file.json> [--screen ...]     time the first frame and count frames for 3 s,
+//                                                           off-screen, then exit (development: plan §3.7)
 
 #include <QFontDatabase>
 #include <QGuiApplication>
@@ -15,6 +17,7 @@
 #include <string_view>
 
 #include "accounts.hpp"
+#include "frame_meter.hpp"
 #include "service_client.hpp"
 #include "sirenproof/platform/pipe.hpp"
 #include "sirenproof/platform/win.hpp"
@@ -66,12 +69,27 @@ int main(int argc, char* argv[]) {
     qmlRegisterSingletonInstance("Sirenproof.Backend", 1, 0, "Accounts", &accounts);
 
     QQmlApplicationEngine engine;
-    engine.setInitialProperties({{"screen", screen.isEmpty() ? QStringLiteral("now") : screen},
-                                 {"paletteText", option(args, "--palette")},
-                                 {"runText", option(args, "--run")}});
+    QVariantMap initial{{"screen", screen.isEmpty() ? QStringLiteral("now") : screen},
+                        {"paletteText", option(args, "--palette")},
+                        {"runText", option(args, "--run")}};
+    const QString measure = option(args, "--measure");
+    if (!measure.isEmpty()) {
+        // Real rendering, but invisible, click-through and never focused, so measuring doesn't get in
+        // anyone's way. (A window off every screen is never asked to draw, so that wouldn't measure.)
+        initial["opacity"] = 0.0;
+        initial["flags"] = QVariant::fromValue(Qt::Window | Qt::Tool | Qt::WindowTransparentForInput |
+                                               Qt::WindowDoesNotAcceptFocus);
+    }
+    engine.setInitialProperties(initial);
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, &app, [] { QCoreApplication::exit(1); },
                      Qt::QueuedConnection);
     engine.loadFromModule("Sirenproof", "Main");
+
+    if (!measure.isEmpty() && !engine.rootObjects().isEmpty()) {
+        if (auto* window = qobject_cast<QQuickWindow*>(engine.rootObjects().first())) {
+            new sirenproof::ui::FrameMeter(window, measure, std::chrono::seconds{3});
+        }
+    }
 
     if (screenshot) {
         const QString file = option(args, "--screenshot");

@@ -5,6 +5,11 @@
 //   sirenproof-tray [--pipe <name>]
 //   sirenproof-tray --self-test [--pipe <name>]   add the icon, ask the service once, remove it, exit
 //   sirenproof-tray --pause-preview <file.png> [--elapsed <seconds>]   draw the pause into a file
+//
+// Checking the budgets in plan §3.7 (development; they write JSON and exit):
+//   sirenproof-tray --measure-idle <file> [--seconds <n>]   CPU used while idle, and memory
+//   sirenproof-tray --measure-pause <file>   from "something changed" to the pause's first frame, with
+//                                            the pause invisible and click-through
 
 #include "sirenproof/platform/win.hpp"
 
@@ -29,6 +34,8 @@
 #include "sirenproof/platform/pipe.hpp"
 #include "sirenproof/platform/system.hpp"
 
+#include <psapi.h>
+
 using namespace sirenproof;
 
 namespace {
@@ -50,6 +57,68 @@ struct TrayState {
     std::unique_ptr<tray::PauseOverlay> pause;
 };
 TrayState g_tray;
+
+// Budget checks (see the top of this file).
+constexpr UINT_PTR kMeasureStart = 1;
+constexpr UINT_PTR kMeasureEnd = 2;
+struct Measurement {
+    std::wstring idle_file;
+    int idle_seconds = 60;
+    double cpu_at_start_ms = 0;
+    std::wstring pause_file;
+    std::uint64_t changed_at_ms = 0;
+    core::Json steps = core::Json::object();  // milliseconds after changed_at_ms
+};
+Measurement g_measure;
+
+std::uint64_t unix_ms() {
+    FILETIME now{};
+    GetSystemTimePreciseAsFileTime(&now);
+    const std::uint64_t ticks = (std::uint64_t{now.dwHighDateTime} << 32) | now.dwLowDateTime;
+    return (ticks - 116'444'736'000'000'000ULL) / 10'000;
+}
+
+double cpu_ms() {
+    FILETIME created{}, ended{}, kernel{}, user{};
+    GetProcessTimes(GetCurrentProcess(), &created, &ended, &kernel, &user);
+    const auto value = [](const FILETIME& t) { return (std::uint64_t{t.dwHighDateTime} << 32) | t.dwLowDateTime; };
+    return static_cast<double>(value(kernel) + value(user)) / 10'000.0;
+}
+
+void write_measurement(const std::wstring& file, const core::Json& result) {
+    const std::string text = result.dump();
+    HANDLE out = CreateFileW(file.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (out == INVALID_HANDLE_VALUE) return;
+    DWORD written = 0;
+    WriteFile(out, text.data(), static_cast<DWORD>(text.size()), &written, nullptr);
+    CloseHandle(out);
+}
+
+void finish_idle_measurement() {
+    PROCESS_MEMORY_COUNTERS_EX memory{};
+    memory.cb = sizeof(memory);
+    GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&memory), sizeof(memory));
+    write_measurement(g_measure.idle_file,
+                      {{"seconds", g_measure.idle_seconds},
+                       {"cpu_ms", cpu_ms() - g_measure.cpu_at_start_ms},
+                       {"private_mb", static_cast<double>(memory.PrivateUsage) / (1024.0 * 1024.0)},
+                       {"working_set_mb", static_cast<double>(memory.WorkingSetSize) / (1024.0 * 1024.0)}});
+    DestroyWindow(g_tray.window);
+}
+
+void pause_step(const char* step) {
+    if (!g_measure.pause_file.empty()) g_measure.steps[step] = unix_ms() - g_measure.changed_at_ms;
+}
+
+void pause_first_frame() {
+    if (g_measure.pause_file.empty()) return;
+    const std::uint64_t now = unix_ms();
+    write_measurement(g_measure.pause_file, {{"changed_at_ms", g_measure.changed_at_ms},
+                                             {"frame_at_ms", now},
+                                             {"changed_to_frame_ms", now - g_measure.changed_at_ms},
+                                             {"steps", g_measure.steps}});
+    DestroyWindow(g_tray.window);
+}
 
 // The icon, drawn in code: a sea-glass ring with the mast through it.
 HICON make_icon(int size) {
@@ -146,6 +215,7 @@ bool add_icon() {
 
 void refresh(bool announce) {
     const auto status = ask("status");
+    pause_step("status");
     std::optional<std::string> lock;
     std::wstring tip;
     if (!status) {
@@ -308,7 +378,16 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lp
     }
     switch (message) {
         case kChangedMessage:
+            g_measure.changed_at_ms = unix_ms();
             refresh(true);
+            return 0;
+        case WM_TIMER:
+            KillTimer(window, wparam);
+            if (wparam == kMeasureStart) {
+                g_measure.cpu_at_start_ms = cpu_ms();
+                SetTimer(window, kMeasureEnd, static_cast<UINT>(g_measure.idle_seconds) * 1000, nullptr);
+            }
+            if (wparam == kMeasureEnd) finish_idle_measurement();
             return 0;
         case WM_DESTROY: {
             NOTIFYICONDATAW data = icon_data();
@@ -337,6 +416,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
         if (arg == L"--pipe" && i + 1 < argc) g_tray.pipe = argv[++i];
         if (arg == L"--pause-preview" && i + 1 < argc) preview = argv[++i];
         if (arg == L"--elapsed" && i + 1 < argc) elapsed = _wtof(argv[++i]);
+        if (arg == L"--measure-idle" && i + 1 < argc) g_measure.idle_file = argv[++i];
+        if (arg == L"--seconds" && i + 1 < argc) g_measure.idle_seconds = std::max(1, _wtoi(argv[++i]));
+        if (arg == L"--measure-pause" && i + 1 < argc) g_measure.pause_file = argv[++i];
     }
     LocalFree(argv);
 
@@ -375,7 +457,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
         return 0;
     }
 
-    g_tray.pause = std::make_unique<tray::PauseOverlay>(instance, choose_at_pause);
+    g_tray.pause = std::make_unique<tray::PauseOverlay>(
+        instance, choose_at_pause,
+        tray::PauseOverlay::Measuring{!g_measure.pause_file.empty(), pause_first_frame, pause_step});
+    // Let start-up settle before measuring the quiet that follows.
+    if (!g_measure.idle_file.empty()) SetTimer(g_tray.window, kMeasureStart, 3000, nullptr);
     // The watcher lives as long as the program; it holds nothing that needs tidying up.
     std::thread(watch_service, g_tray.window, g_tray.pipe).detach();
 

@@ -5,11 +5,13 @@ qt_standard_project_setup(REQUIRES 6.8)
 
 set(SIRENPROOF_UI_SOURCES
     src/accounts.cpp
+    src/frame_meter.cpp
     src/json_variant.cpp
     src/main.cpp
     src/service_client.cpp)
 
-qt_add_executable(sirenproof_ui WIN32 ${SIRENPROOF_UI_SOURCES} src/accounts.hpp src/service_client.hpp src/json_variant.hpp)
+qt_add_executable(sirenproof_ui WIN32 ${SIRENPROOF_UI_SOURCES} src/accounts.hpp src/frame_meter.hpp src/service_client.hpp
+                  src/json_variant.hpp)
 set_target_properties(sirenproof_ui PROPERTIES OUTPUT_NAME sirenproof-ui)
 
 set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)

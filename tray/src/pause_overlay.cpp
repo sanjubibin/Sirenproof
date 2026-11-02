@@ -220,6 +220,8 @@ void draw(ID2D1RenderTarget* rt, const Text& t, const PauseView& view, double el
 struct PauseOverlay::Impl {
     HINSTANCE instance = nullptr;
     Choice choice;
+    Measuring measuring;
+    bool drawn = false;  // the first frame for this pause is on screen
     HWND window = nullptr;
     PauseView view;
     std::chrono::steady_clock::time_point started{};  // when the countdown would have begun
@@ -266,15 +268,24 @@ struct PauseOverlay::Impl {
         if (!target) {
             RECT client{};
             GetClientRect(window, &client);
-            const auto props = D2D1::RenderTargetProperties(D2D1_RENDER_TARGET_TYPE_DEFAULT, D2D1::PixelFormat(), 96.0f, 96.0f);
+            // Drawn on the CPU: it's on screen in about 40 ms, where starting a GPU device first takes
+            // 70-100 ms, and a still screen with one ring redraws in a few milliseconds (plan §3.7).
+            const auto props = D2D1::RenderTargetProperties(D2D1_RENDER_TARGET_TYPE_SOFTWARE, D2D1::PixelFormat(), 96.0f, 96.0f);
             const auto hwnd_props = D2D1::HwndRenderTargetProperties(
                 window, D2D1::SizeU(static_cast<UINT32>(client.right), static_cast<UINT32>(client.bottom)));
             if (FAILED(d2d->CreateHwndRenderTarget(props, hwnd_props, &target))) return;
+            if (measuring.step) measuring.step("render_target");
             text = make_text(dwrite.Get(), scale);
+            if (measuring.step) measuring.step("text");
         }
         target->BeginDraw();
         draw(target.Get(), text, view, elapsed(), hovered, focused, scale);
-        if (target->EndDraw() == D2DERR_RECREATE_TARGET) target.Reset();
+        const HRESULT done = target->EndDraw();
+        if (done == D2DERR_RECREATE_TARGET) target.Reset();
+        if (SUCCEEDED(done) && !drawn) {
+            drawn = true;
+            if (measuring.first_frame) measuring.first_frame();
+        }
     }
 
     LRESULT handle(UINT message, WPARAM wparam, LPARAM lparam) {
@@ -336,9 +347,10 @@ struct PauseOverlay::Impl {
     }
 };
 
-PauseOverlay::PauseOverlay(HINSTANCE instance, Choice choice) : impl_(std::make_unique<Impl>()) {
+PauseOverlay::PauseOverlay(HINSTANCE instance, Choice choice, Measuring measuring) : impl_(std::make_unique<Impl>()) {
     impl_->instance = instance;
     impl_->choice = std::move(choice);
+    impl_->measuring = std::move(measuring);
     D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, impl_->d2d.GetAddressOf());
     DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory),
                         reinterpret_cast<IUnknown**>(impl_->dwrite.GetAddressOf()));
@@ -362,6 +374,8 @@ void PauseOverlay::show(const PauseView& view, std::chrono::seconds waited) {
     impl_->started = std::chrono::steady_clock::now() - waited;
     impl_->hovered = 0;
     impl_->focused = 1;
+    impl_->drawn = false;
+    const bool invisible = impl_->measuring.invisible;
 
     // Cover the monitor in use, which is where the program just opened.
     MONITORINFO monitor{};
@@ -370,19 +384,22 @@ void PauseOverlay::show(const PauseView& view, std::chrono::seconds waited) {
     const RECT& area = monitor.rcMonitor;
     if (!impl_->window) {
         const std::wstring title = L"Sirenproof: pause before " + view.program;
-        impl_->window = CreateWindowExW(WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_LAYERED, L"SirenproofPause", title.c_str(),
-                                        WS_POPUP, area.left, area.top, area.right - area.left, area.bottom - area.top,
-                                        nullptr, nullptr, impl_->instance, impl_.get());
+        const DWORD style = WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_LAYERED |
+                            (invisible ? WS_EX_TRANSPARENT | WS_EX_NOACTIVATE : 0);
+        impl_->window = CreateWindowExW(style, L"SirenproofPause", title.c_str(), WS_POPUP, area.left, area.top,
+                                        area.right - area.left, area.bottom - area.top, nullptr, nullptr, impl_->instance,
+                                        impl_.get());
         if (!impl_->window) return;
-        SetLayeredWindowAttributes(impl_->window, 0, kOpacity, LWA_ALPHA);
+        if (impl_->measuring.step) impl_->measuring.step("window");
+        SetLayeredWindowAttributes(impl_->window, 0, invisible ? 0 : kOpacity, LWA_ALPHA);
     } else {
         SetWindowPos(impl_->window, HWND_TOPMOST, area.left, area.top, area.right - area.left, area.bottom - area.top,
                      SWP_NOACTIVATE);
         impl_->target.Reset();
     }
     impl_->scale = static_cast<float>(GetDpiForWindow(impl_->window)) / 96.0f;
-    ShowWindow(impl_->window, SW_SHOW);
-    SetForegroundWindow(impl_->window);
+    ShowWindow(impl_->window, invisible ? SW_SHOWNOACTIVATE : SW_SHOW);
+    if (!invisible) SetForegroundWindow(impl_->window);
     if (!impl_->ready()) SetTimer(impl_->window, kTickTimer, kTickMs, nullptr);
     InvalidateRect(impl_->window, nullptr, FALSE);
 }

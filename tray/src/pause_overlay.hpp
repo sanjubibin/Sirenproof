@@ -20,6 +20,14 @@ struct PauseView {
     int continue_minutes = 5;
 };
 
+// For checking the pause's budget (plan §3.7) without getting in anyone's way: it's drawn for real but
+// invisible and click-through, and `first_frame` hears when its first frame is done.
+struct PauseMeasuring {
+    bool invisible = false;
+    std::function<void()> first_frame;
+    std::function<void(const char* step)> step;  // where the time goes on the way to that frame
+};
+
 // The pause for a program a Nudge rule caught: a screen over the monitor in use, with the goal, a
 // countdown and two choices, close the program or go on for a few minutes. Drawn with Direct2D, and only
 // redrawn while the countdown runs or the pointer moves over a button.
@@ -28,7 +36,9 @@ public:
     // close: true for "Close it", false for "Continue".
     using Choice = std::function<void(const PauseView& view, bool close)>;
 
-    PauseOverlay(HINSTANCE instance, Choice choice);
+    using Measuring = PauseMeasuring;
+
+    PauseOverlay(HINSTANCE instance, Choice choice, Measuring measuring = Measuring());
     ~PauseOverlay();
     PauseOverlay(const PauseOverlay&) = delete;
     PauseOverlay& operator=(const PauseOverlay&) = delete;

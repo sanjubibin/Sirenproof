@@ -37,7 +37,7 @@ milestone, newest first. What comes next is in the [roadmap](ROADMAP.md).
       screen offers it while a lock holds and your account is an administrator.
     - `--palette <text>` opens the palette with that text, and `--run <command>` does a command at start.
     - Reconnects to the service by itself, and honours Windows' "show animations" setting.
-  - `sirenproof-tray.exe`, the tray icon (plain Win32, 1.6 MB of private memory):
+  - `sirenproof-tray.exe`, the tray icon (plain Win32, about 2 MB of private memory):
     - Its tooltip says whether a lock holds and until when.
     - A click opens the main window.
     - The right-click menu offers a 5-minute break.
@@ -50,6 +50,9 @@ milestone, newest first. What comes next is in the [roadmap](ROADMAP.md).
     minutes" or "Close it". Drawn with Direct2D; `sirenproof-tray --pause-preview <file.png>` draws it
     into a file. `sirenproof status` lists programs waiting at the pause.
   - CI builds the main window with Qt and loads it offscreen.
+  - `tools\measure-budgets.ps1` measures every interface budget in the plan (§3.7) and prints a pass/fail
+    table; all are met. The window (`--measure`) and the tray (`--measure-idle`, `--measure-pause`) have
+    the hooks it uses.
 
 - **Browsers (M3)**
   - The Chrome and Edge extension (Manifest V3). It asks the service about every page, including
@@ -95,6 +98,11 @@ milestone, newest first. What comes next is in the [roadmap](ROADMAP.md).
   - GPL-3.0-or-later license, README, contributing guide and security policy.
 
 ### Changed
+
+- The pause for programs is drawn on the CPU: on screen in about 45 ms instead of 80–190 ms, since it no
+  longer starts a GPU device first.
+- The block page's countdown ring steps once a second instead of animating `stroke-dashoffset`, which
+  repainted on every frame.
 
 - The ready-made lists (Video, Social, Games) are defined once in the core, for the lock screen and the
   palette, and the command line and the palette read lengths ("1h30m") the same way.
