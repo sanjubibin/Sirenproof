@@ -30,6 +30,11 @@ milestone, newest first. What comes next is in the [roadmap](ROADMAP.md).
       a few shortcuts (a bare length, list names like `video`, and names like `youtube`), shows what a
       command will do before you press Enter, and checks addresses as you type. A lock fills in the
       Start a lock screen, so it's still held to commit.
+    - **Lock down this PC:** a four-step setup that moves everyday use to a standard account, so that
+      switching Sirenproof off needs a password someone else holds. It checks the PC's administrators
+      live and opens Windows' own settings for each change; Sirenproof never changes an account itself.
+      It won't go on until a second administrator exists, and warns if that one disappears. The Now
+      screen offers it while a lock holds and your account is an administrator.
     - `--palette <text>` opens the palette with that text, and `--run <command>` does a command at start.
     - Reconnects to the service by itself, and honours Windows' "show animations" setting.
   - `sirenproof-tray.exe`, the tray icon (plain Win32, 1.6 MB of private memory):

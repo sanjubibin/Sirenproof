@@ -22,7 +22,8 @@ Popup {
         { label: "Take a break", command: "break" },
         { label: "Test an address against your rules", command: "check youtube.com/shorts" },
         { label: "Go to your rules", command: "rules" },
-        { label: "End a lock early", command: "unlock" }
+        { label: "End a lock early", command: "unlock" },
+        { label: "Lock down this PC", command: "lockdown" }
     ]
     readonly property var items: {
         const typed = field.text.trim().toLowerCase()
@@ -72,7 +73,7 @@ Popup {
         }
         case "break": return "Take a break from the blocks that allow one."
         case "check": return verdict || `Checking ${c.subject}…`
-        default: return { now: "Go to Now", rules: "Go to your rules", lock: "Go to Start a lock" }[c.screen]
+        default: return { now: "Go to Now", rules: "Go to your rules", lock: "Go to Start a lock", lockdown: "Go to Lock down this PC" }[c.screen]
         }
     }
 
@@ -207,7 +208,7 @@ Popup {
             Text {
                 Layout.margins: 14
                 visible: root.items.length === 0
-                text: "No command matches. Try lock, block, nudge, break, check or rules."
+                text: "No command matches. Try lock, block, nudge, break, check, rules or lockdown."
                 color: Theme.muted
             }
         }

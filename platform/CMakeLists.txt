@@ -1,6 +1,7 @@
 # sirenproof_platform: everything that talks to Windows. The logic itself lives in sirenproof_core.
 
 add_library(sirenproof_platform STATIC
+    src/accounts.cpp
     src/app_blocker.cpp
     src/browsers.cpp
     src/clock.cpp
@@ -21,7 +22,7 @@ target_compile_definitions(sirenproof_platform PUBLIC
     UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX _WIN32_WINNT=0x0A00)
 target_link_libraries(sirenproof_platform
     PUBLIC Sirenproof::core
-    PRIVATE advapi32 bcrypt crypt32 version wintrust)
+    PRIVATE advapi32 bcrypt crypt32 netapi32 version wintrust)
 
 sirenproof_set_warnings(sirenproof_platform)
 sirenproof_harden(sirenproof_platform)

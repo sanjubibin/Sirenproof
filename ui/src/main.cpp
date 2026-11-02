@@ -1,6 +1,6 @@
 // sirenproof-ui: the main window.
 //
-//   sirenproof-ui [--pipe <name>] [--screen now|rules|lock] [--palette <command>] [--run <command>]
+//   sirenproof-ui [--pipe <name>] [--screen now|rules|lock|lockdown] [--palette <command>] [--run <command>]
 //     --palette opens the command palette with that text; --run does the command as if typed there
 //     (a lock still only fills in the lock screen)
 //   sirenproof-ui --screenshot <file.png> [--screen ...]   render one screen offscreen and exit (development)
@@ -14,6 +14,7 @@
 
 #include <string_view>
 
+#include "accounts.hpp"
 #include "service_client.hpp"
 #include "sirenproof/platform/pipe.hpp"
 #include "sirenproof/platform/win.hpp"
@@ -61,6 +62,8 @@ int main(int argc, char* argv[]) {
     sirenproof::ui::ServiceClient service(pipe.isEmpty() ? std::wstring(sirenproof::platform::kServicePipeName)
                                                          : pipe.toStdWString());
     qmlRegisterSingletonInstance("Sirenproof.Backend", 1, 0, "Service", &service);
+    sirenproof::ui::Accounts accounts;
+    qmlRegisterSingletonInstance("Sirenproof.Backend", 1, 0, "Accounts", &accounts);
 
     QQmlApplicationEngine engine;
     engine.setInitialProperties({{"screen", screen.isEmpty() ? QStringLiteral("now") : screen},

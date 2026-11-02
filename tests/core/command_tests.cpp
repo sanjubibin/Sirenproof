@@ -94,6 +94,7 @@ TEST_CASE("Other commands: break, check and going to a screen", "[command]") {
     CHECK(parse_command("lock")->screen == "lock");
     CHECK(parse_command("unlock")->screen == "now");
     CHECK(parse_command("Status")->screen == "now");
+    CHECK(parse_command("lockdown")->screen == "lockdown");
 }
 
 TEST_CASE("Mistakes say what's wrong, and whether the command was understood", "[command]") {

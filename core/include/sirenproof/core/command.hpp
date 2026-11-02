@@ -34,7 +34,7 @@ std::span<const std::string_view> named_targets(std::string_view name);
 // "block reddit 25m").
 //
 //   block|nudge <target>... [<duration>]       lock <target>... <duration> [--unlock <method>]
-//   break    check <address-or-program>    now | rules | lock | unlock
+//   break    check <address-or-program>    now | rules | lock | unlock | lockdown
 struct Command {
     enum class Kind { Block, Lock, Break, Check, Go };
 
@@ -45,7 +45,7 @@ struct Command {
     Strength strength = Strength::Block;
     std::string unlock;   // Lock: none, wait, type or friend; empty to choose on screen
     std::string subject;  // Check
-    std::string screen;   // Go: now, rules or lock
+    std::string screen;   // Go: now, rules, lock or lockdown
 };
 
 struct CommandError {

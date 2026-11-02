@@ -90,9 +90,10 @@ std::expected<Command, CommandError> parse_command(std::string_view text) {
     const std::span<const std::string_view> rest(std::next(words.begin()), words.end());
 
     Command command;
-    if (verb == "now" || verb == "status" || verb == "unlock" || verb == "rules" || (verb == "lock" && rest.empty())) {
+    if (verb == "now" || verb == "status" || verb == "unlock" || verb == "rules" || verb == "lockdown" ||
+        (verb == "lock" && rest.empty())) {
         command.kind = Command::Kind::Go;
-        command.screen = verb == "rules" || verb == "lock" ? verb : "now";
+        command.screen = verb == "rules" || verb == "lock" || verb == "lockdown" ? verb : "now";
         return command;
     }
     if (verb == "break") {

@@ -9,6 +9,7 @@ Flickable {
 
     required property real now
     signal startLock()
+    signal lockDown()
     signal message(string text)
     signal report(var result, string success)
 
@@ -35,7 +36,7 @@ Flickable {
         Card {
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignTop
-            Layout.rowSpan: root.wide ? 3 : 1
+            Layout.rowSpan: root.wide ? 4 : 1
             padding: 32
             spacing: 18
 
@@ -319,6 +320,36 @@ Flickable {
                 wrapMode: Text.Wrap
                 text: breaksCard.lockedOut ? "This lock doesn't pause for breaks." : "Breaks end on their own."
                 color: Theme.muted; font.pixelSize: 13
+            }
+        }
+
+        // ---- Offered once there's a lock to protect ----
+        Card {
+            id: lockDownCard
+            property var accounts: Accounts.read()
+            Layout.fillWidth: true
+            Layout.preferredWidth: root.wide ? 340 : -1
+            Layout.maximumWidth: root.wide ? 380 : 100000
+            Layout.alignment: Qt.AlignTop
+            visible: root.lock !== null && !accounts.error && accounts.admin
+
+            Timer {
+                interval: 60000
+                running: root.visible
+                repeat: true
+                onTriggered: lockDownCard.accounts = Accounts.read()
+            }
+
+            Text { text: "HARDER TO SWITCH OFF"; color: Theme.muted; font.pixelSize: 12; font.weight: Font.DemiBold; font.letterSpacing: 1.6 }
+            Text {
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
+                text: "Your account is an administrator, so it could stop Sirenproof. Lock down this PC to make that need someone else's password."
+                color: Theme.text; font.pixelSize: 14
+            }
+            SirenButton {
+                text: "Lock down this PC"
+                onClicked: root.lockDown()
             }
         }
     }

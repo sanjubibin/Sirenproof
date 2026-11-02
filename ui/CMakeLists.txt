@@ -4,11 +4,12 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS Quick QuickControls2)
 qt_standard_project_setup(REQUIRES 6.8)
 
 set(SIRENPROOF_UI_SOURCES
+    src/accounts.cpp
     src/json_variant.cpp
     src/main.cpp
     src/service_client.cpp)
 
-qt_add_executable(sirenproof_ui WIN32 ${SIRENPROOF_UI_SOURCES} src/service_client.hpp src/json_variant.hpp)
+qt_add_executable(sirenproof_ui WIN32 ${SIRENPROOF_UI_SOURCES} src/accounts.hpp src/service_client.hpp src/json_variant.hpp)
 set_target_properties(sirenproof_ui PROPERTIES OUTPUT_NAME sirenproof-ui)
 
 set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
@@ -18,6 +19,7 @@ qt_add_qml_module(sirenproof_ui
     QML_FILES
         qml/Card.qml
         qml/CommandPalette.qml
+        qml/LockdownScreen.qml
         qml/LockScreen.qml
         qml/Main.qml
         qml/MastRing.qml
@@ -27,7 +29,7 @@ qt_add_qml_module(sirenproof_ui
         qml/SirenButton.qml
         qml/Theme.qml)
 
-target_link_libraries(sirenproof_ui PRIVATE Qt6::Quick Qt6::QuickControls2 Sirenproof::platform)
+target_link_libraries(sirenproof_ui PRIVATE Qt6::Quick Qt6::QuickControls2 Sirenproof::platform shell32)
 
 sirenproof_set_source_warnings(${SIRENPROOF_UI_SOURCES})
 sirenproof_harden(sirenproof_ui)

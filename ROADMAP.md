@@ -27,7 +27,7 @@ Where Sirenproof stands and what comes next. The reasoning behind each step is i
 - [x] Command palette (Ctrl+K): type `lock youtube 2h`, `block reddit 25m` or `check twitch.tv`
 - [ ] Ready-made lists in the Rules screen
 - [ ] The typing and friend-code unlock challenges, polished
-- [ ] "Lock down this PC" setup: a standard account for daily use ([plan §3.8](docs/PLAN.md#38-lock-down-this-pc))
+- [x] "Lock down this PC" setup: a standard account for daily use ([plan §3.8](docs/PLAN.md#38-lock-down-this-pc))
 - [ ] Pause overlay for programs on a Nudge rule (Direct2D)
 - [ ] Events from the service, so the tray no longer asks every 15 seconds (the budget asks for no timers
       while nothing is active). The pause overlay needs them too.
@@ -56,6 +56,8 @@ These need a Windows virtual machine; the steps are in [docs/TESTING.md](docs/TE
 - [ ] M2 acceptance test: a lock survives a hosts edit, killing the service, a clock change and a reboot
 - [ ] M3 browser test: Shorts blocked while videos play, no private windows during a lock, a disabled
       extension leads to a warning and closed windows
+- [ ] M4 "Lock down this PC" test: the setup walks through creating a second administrator and
+      becoming a standard user, and refuses to go on without one
 
 ## After v1.0
 

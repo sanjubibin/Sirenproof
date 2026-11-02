@@ -7,13 +7,16 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <cstddef>
 #include <format>
 #include <string>
+#include <vector>
 
 #include "sirenproof/core/hosts.hpp"
 #include "sirenproof/core/rule.hpp"
 #include "sirenproof/core/state_json.hpp"
 #include "sirenproof/core/target.hpp"
+#include "sirenproof/platform/accounts.hpp"
 #include "sirenproof/platform/app_blocker.hpp"
 #include "sirenproof/platform/files.hpp"
 #include "sirenproof/platform/hosts_file.hpp"
@@ -375,4 +378,46 @@ TEST_CASE("SystemRandom produces different bytes each time", "[platform][random]
     random.fill(a);
     random.fill(b);
     CHECK(a != b);
+}
+
+namespace {
+
+// What this process's token says: an administrator's token is filtered (UAC) or elevated; anything
+// else is asked about the group directly.
+bool token_says_administrator() {
+    HANDLE token = nullptr;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) return false;
+    TOKEN_ELEVATION_TYPE type{};
+    DWORD size = 0;
+    GetTokenInformation(token, TokenElevationType, &type, sizeof(type), &size);
+    CloseHandle(token);
+    if (type == TokenElevationTypeLimited || type == TokenElevationTypeFull) return true;
+    BYTE sid[SECURITY_MAX_SID_SIZE] = {};
+    DWORD sid_size = sizeof(sid);
+    BOOL member = FALSE;
+    return CreateWellKnownSid(WinBuiltinAdministratorsSid, nullptr, sid, &sid_size) &&
+           CheckTokenMembership(nullptr, sid, &member) && member;
+}
+
+bool running_as_system() {
+    HANDLE token = nullptr;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) return false;
+    DWORD needed = 0;
+    GetTokenInformation(token, TokenUser, nullptr, 0, &needed);
+    std::vector<std::byte> buffer(needed);
+    const bool ok = needed > 0 && GetTokenInformation(token, TokenUser, buffer.data(), needed, &needed);
+    CloseHandle(token);
+    return ok && IsWellKnownSid(reinterpret_cast<TOKEN_USER*>(buffer.data())->User.Sid, WinLocalSystemSid);
+}
+
+}  // namespace
+
+TEST_CASE("read_administrators agrees with this process's own token", "[platform][accounts]") {
+    const auto admins = read_administrators();
+    REQUIRE(admins);
+    CHECK_FALSE(admins->current_user.empty());
+    CHECK(std::ranges::find(admins->others, admins->current_user) == admins->others.end());
+    // SYSTEM acts as an administrator without being listed in the group.
+    if (running_as_system()) SKIP("running as SYSTEM");
+    CHECK(admins->current_is_admin == token_says_administrator());
 }

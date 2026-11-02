@@ -146,7 +146,8 @@ ApplicationWindow {
                 }
 
                 Repeater {
-                    model: [{ id: "now", label: "Now" }, { id: "rules", label: "Rules" }, { id: "lock", label: "Start a lock" }]
+                    model: [{ id: "now", label: "Now" }, { id: "rules", label: "Rules" }, { id: "lock", label: "Start a lock" },
+                            { id: "lockdown", label: "Lock down this PC" }]
                     delegate: Button {
                         id: navItem
                         required property var modelData
@@ -255,11 +256,12 @@ ApplicationWindow {
             StackLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                currentIndex: ["now", "rules", "lock"].indexOf(window.screen)
+                currentIndex: ["now", "rules", "lock", "lockdown"].indexOf(window.screen)
 
                 NowScreen {
                     now: window.now
                     onStartLock: window.screen = "lock"
+                    onLockDown: window.screen = "lockdown"
                     onMessage: text => window.say(text)
                     onReport: (result, success) => window.report(result, success)
                 }
@@ -273,6 +275,9 @@ ApplicationWindow {
                     now: window.now
                     onLocked: window.screen = "now"
                     onReport: (result, success) => window.report(result, success)
+                }
+                LockdownScreen {
+                    onDone: window.screen = "now"
                 }
             }
         }

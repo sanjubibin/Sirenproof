@@ -161,6 +161,22 @@ sirenproof block youtube.com/shorts youtube.com/feed youtube.com/ --for 25m --lo
 | 16 | Open Firefox, if installed | Closed after the same grace period (the extension isn't available for it yet) |
 | 17 | After the lock: `sirenproof-service uninstall` | The browser policies are back as they were, and the relay is unregistered |
 
+### Lock down this PC (milestone M4)
+
+This changes Windows accounts, so it belongs in the VM too. Start from the **clean** snapshot, signed in
+as the VM's only administrator, with the service installed and `sirenproof-ui.exe` copied next to it
+(with Qt's libraries) and running.
+
+| # | Try this | Expected |
+|---|---|---|
+| 18 | Open **Lock down this PC** | Step 1 names your account as an administrator, with no other administrator |
+| 19 | Step 2, before creating anything | "I've created it" stays disabled |
+| 20 | Step 2: **Open account settings**, add a local account "Keeper" and make it an administrator | Within a few seconds the step shows "Found: Keeper" and lets you continue |
+| 21 | Go on to step 4, then in Settings make Keeper a standard user again | Step 4 warns that there's no other administrator and offers no button. Make Keeper an administrator again: the button comes back |
+| 22 | Step 4: **Open User Accounts**, change your account type to Standard (Keeper's password is asked for) | The step shows that your account is now a standard user |
+| 23 | Sign out and back in. Try `sc stop Sirenproof`, editing the hosts file, and uninstalling | Each needs Keeper's password |
+| 24 | Undo: as Keeper, make your account an administrator again | Step 1 shows it as an administrator again |
+
 ### If something goes wrong
 
 `tools\dev-reset.ps1` (administrator PowerShell) removes the service, Sirenproof's hosts entries and,
