@@ -134,7 +134,16 @@ std::string Host::handle(std::string_view request, const platform::PipeClient& c
             for (const auto& u : state_.unlock_requests) unlocking.push_back({{"rule", u.rule_id}, {"due", core::format_time(u.due)}});
             Json locked = Json::array();
             for (const auto& rule : state_.rules) {
-                if (engine_.lock_holds(rule, t)) locked.push_back({{"rule", rule.id}, {"until", optional_time(engine_.period_end(rule, t))}});
+                if (!engine_.lock_holds(rule, t)) continue;
+                static constexpr const char* kMethods[] = {"none", "wait", "type", "friend"};
+                const auto* span = std::get_if<core::Span>(&rule.when);
+                locked.push_back({{"rule", rule.id},
+                                  {"name", rule.name},
+                                  {"goal", rule.goal},
+                                  {"from", span ? Json(core::format_time(span->start)) : Json(nullptr)},
+                                  {"until", optional_time(engine_.period_end(rule, t))},
+                                  {"unlock", kMethods[static_cast<int>(rule.unlock.kind)]},
+                                  {"breaks_allowed", rule.breaks_allowed}});
             }
             Json hosts = Json::array();
             for (const auto& d : plan.hosts) hosts.push_back(d.str());

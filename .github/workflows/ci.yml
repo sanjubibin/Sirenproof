@@ -37,6 +37,8 @@ jobs:
             mingw-w64-ucrt-x86_64-ninja
             mingw-w64-ucrt-x86_64-catch
             mingw-w64-ucrt-x86_64-nlohmann-json
+            mingw-w64-ucrt-x86_64-qt6-base
+            mingw-w64-ucrt-x86_64-qt6-declarative
 
       - name: Configure
         run: cmake --preset ${{ matrix.preset }}
@@ -52,6 +54,9 @@ jobs:
           ./build/${{ matrix.preset }}/bin/sirenproof.exe validate examples/state.example.json
           ./build/${{ matrix.preset }}/bin/sirenproof.exe plan --state examples/state.example.json --at 2026-11-02T10:00:00Z
           ./build/${{ matrix.preset }}/bin/sirenproof-service.exe --version
+
+      - name: Load the main window offscreen
+        run: ./build/${{ matrix.preset }}/bin/sirenproof-ui.exe --pipe '\\.\pipe\SirenproofCiNone' --screenshot ui-now.png
 
   extension:
     name: extension

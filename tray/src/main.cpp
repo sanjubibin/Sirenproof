@@ -1,0 +1,316 @@
+// sirenproof-tray: the tray icon. Shows whether a lock holds, opens the main window, offers a break and
+// says when a lock starts or ends. It asks the service every 15 seconds and otherwise sleeps.
+//
+//   sirenproof-tray [--pipe <name>]
+//   sirenproof-tray --self-test [--pipe <name>]   add the icon, ask the service once, remove it, exit
+
+#include "sirenproof/platform/win.hpp"
+
+#include <shellapi.h>
+
+#include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <cstdint>
+#include <format>
+#include <optional>
+#include <string>
+
+#include "sirenproof/core/json_codec.hpp"
+#include "sirenproof/core/time.hpp"
+#include "sirenproof/platform/paths.hpp"
+#include "sirenproof/platform/pipe.hpp"
+#include "sirenproof/platform/system.hpp"
+
+using namespace sirenproof;
+
+namespace {
+
+constexpr UINT kTrayMessage = WM_APP + 1;
+constexpr UINT_PTR kPollTimer = 1;
+constexpr UINT kPollMs = 15'000;
+constexpr UINT kIconId = 1;
+enum Command : UINT { kOpen = 1, kBreak, kQuit };
+
+struct TrayState {
+    HWND window = nullptr;
+    HICON icon = nullptr;
+    UINT taskbar_created = 0;
+    std::wstring pipe = std::wstring(platform::kServicePipeName);
+    std::wstring tip = L"Sirenproof";
+    std::optional<std::string> lock_until;  // end of the lock that holds, if one does
+    HANDLE ui_process = nullptr;
+    DWORD ui_pid = 0;
+};
+TrayState g_tray;
+
+// The icon, drawn in code: a sea-glass ring with the mast through it.
+HICON make_icon(int size) {
+    BITMAPV5HEADER header{};
+    header.bV5Size = sizeof(header);
+    header.bV5Width = size;
+    header.bV5Height = -size;  // top-down
+    header.bV5Planes = 1;
+    header.bV5BitCount = 32;
+    header.bV5Compression = BI_BITFIELDS;
+    header.bV5RedMask = 0x00ff0000;
+    header.bV5GreenMask = 0x0000ff00;
+    header.bV5BlueMask = 0x000000ff;
+    header.bV5AlphaMask = 0xff000000;
+
+    void* bits = nullptr;
+    HDC screen = GetDC(nullptr);
+    HBITMAP color = CreateDIBSection(screen, reinterpret_cast<BITMAPINFO*>(&header), DIB_RGB_COLORS, &bits, nullptr, 0);
+    ReleaseDC(nullptr, screen);
+    if (!color || !bits) return nullptr;
+
+    const auto clamp01 = [](double v) { return std::clamp(v, 0.0, 1.0); };
+    const double centre = (size - 1) / 2.0;
+    const double outer = size * 0.46;
+    const double inner = size * 0.32;
+    const double mast = size * 0.065;
+    auto* pixels = static_cast<std::uint32_t*>(bits);
+    for (int y = 0; y < size; ++y) {
+        for (int x = 0; x < size; ++x) {
+            const double dx = x - centre;
+            const double dy = y - centre;
+            const double d = std::sqrt(dx * dx + dy * dy);
+            const double ring = clamp01(outer + 0.5 - d) * clamp01(d - inner + 0.5);
+            const double pole = clamp01(mast + 0.5 - std::abs(dx)) * clamp01(outer * 0.78 + 0.5 - std::abs(dy));
+            const double a = std::max(ring, pole);
+            const auto channel = [&](double c) { return static_cast<std::uint32_t>(std::lround(c * a)); };
+            pixels[y * size + x] = (static_cast<std::uint32_t>(std::lround(255 * a)) << 24) | (channel(0x5c) << 16) |
+                                   (channel(0xe1) << 8) | channel(0xe6);
+        }
+    }
+
+    HBITMAP mask = CreateBitmap(size, size, 1, 1, nullptr);
+    ICONINFO info{TRUE, 0, 0, mask, color};
+    HICON icon = CreateIconIndirect(&info);
+    DeleteObject(mask);
+    DeleteObject(color);
+    return icon;
+}
+
+std::optional<core::Json> ask(std::string_view op) {
+    const core::Json request{{"v", 1}, {"op", op}, {"args", core::Json::object()}};
+    const auto reply = platform::pipe_call(g_tray.pipe, request.dump(),
+                                           {std::chrono::seconds{2}, platform::executable_dir() / L"sirenproof-service.exe"});
+    if (!reply) return std::nullopt;
+    core::Json answer = core::Json::parse(*reply, nullptr, false);
+    if (answer.is_discarded() || !answer.value("ok", false)) return std::nullopt;
+    return answer["result"];
+}
+
+std::wstring local_clock(const std::string& iso) {
+    const auto t = core::parse_time(iso);
+    if (!t) return L"?";
+    return platform::widen(std::format("{:%H:%M}", *t + platform::local_offset_at(*t)));
+}
+
+NOTIFYICONDATAW icon_data() {
+    NOTIFYICONDATAW data{};
+    data.cbSize = sizeof(data);
+    data.hWnd = g_tray.window;
+    data.uID = kIconId;
+    return data;
+}
+
+void notify(const std::wstring& title, const std::wstring& text) {
+    NOTIFYICONDATAW data = icon_data();
+    data.uFlags = NIF_INFO;
+    data.dwInfoFlags = NIIF_INFO | NIIF_RESPECT_QUIET_TIME;
+    title.copy(data.szInfoTitle, std::size(data.szInfoTitle) - 1);
+    text.copy(data.szInfo, std::size(data.szInfo) - 1);
+    Shell_NotifyIconW(NIM_MODIFY, &data);
+}
+
+bool add_icon() {
+    NOTIFYICONDATAW data = icon_data();
+    data.uFlags = NIF_ICON | NIF_TIP | NIF_MESSAGE | NIF_SHOWTIP;
+    data.uCallbackMessage = kTrayMessage;
+    data.hIcon = g_tray.icon;
+    g_tray.tip.copy(data.szTip, std::size(data.szTip) - 1);
+    if (!Shell_NotifyIconW(NIM_ADD, &data)) return false;
+    data.uVersion = NOTIFYICON_VERSION_4;
+    Shell_NotifyIconW(NIM_SETVERSION, &data);
+    return true;
+}
+
+void refresh(bool announce) {
+    const auto status = ask("status");
+    std::optional<std::string> lock;
+    std::wstring tip;
+    if (!status) {
+        tip = L"Sirenproof: the service isn't running";
+    } else if (const auto& locked = (*status)["locked"]; locked.is_array() && !locked.empty()) {
+        lock = locked[0].value("until", std::string{});
+        tip = L"Sirenproof: locked until " + local_clock(*lock);
+    } else {
+        tip = (*status).value("dry_run", false) ? L"Sirenproof: dry run, nothing is enforced" : L"Sirenproof: enforcing";
+    }
+
+    if (announce && lock.has_value() != g_tray.lock_until.has_value()) {
+        if (lock) notify(L"Locked", L"You tied yourself to the mast until " + local_clock(*lock) + L".");
+        else notify(L"The lock has ended", L"Your scheduled rules still apply.");
+    }
+    g_tray.lock_until = lock;
+    g_tray.tip = tip;
+
+    NOTIFYICONDATAW data = icon_data();
+    data.uFlags = NIF_TIP | NIF_SHOWTIP;
+    tip.copy(data.szTip, std::size(data.szTip) - 1);
+    Shell_NotifyIconW(NIM_MODIFY, &data);
+}
+
+BOOL CALLBACK focus_if_ui(HWND window, LPARAM) {
+    DWORD pid = 0;
+    GetWindowThreadProcessId(window, &pid);
+    if (pid != g_tray.ui_pid || !IsWindowVisible(window) || GetWindow(window, GW_OWNER)) return TRUE;
+    if (IsIconic(window)) ShowWindow(window, SW_RESTORE);
+    SetForegroundWindow(window);
+    return FALSE;
+}
+
+void open_window() {
+    if (g_tray.ui_process && WaitForSingleObject(g_tray.ui_process, 0) == WAIT_TIMEOUT) {
+        EnumWindows(focus_if_ui, 0);
+        return;
+    }
+    if (g_tray.ui_process) CloseHandle(g_tray.ui_process);
+    g_tray.ui_process = nullptr;
+
+    std::wstring command = L"\"" + (platform::executable_dir() / L"sirenproof-ui.exe").native() + L"\"";
+    if (g_tray.pipe != platform::kServicePipeName) command += L" --pipe \"" + g_tray.pipe + L"\"";
+    STARTUPINFOW startup{};
+    startup.cb = sizeof(startup);
+    PROCESS_INFORMATION info{};
+    if (CreateProcessW(nullptr, command.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &startup, &info)) {
+        CloseHandle(info.hThread);
+        g_tray.ui_process = info.hProcess;
+        g_tray.ui_pid = info.dwProcessId;
+    } else {
+        notify(L"Sirenproof", L"The main window couldn't be opened.");
+    }
+}
+
+void take_break() {
+    const core::Json request{{"v", 1}, {"op", "break.start"}, {"args", core::Json::object()}};
+    const auto reply = platform::pipe_call(g_tray.pipe, request.dump(),
+                                           {std::chrono::seconds{2}, platform::executable_dir() / L"sirenproof-service.exe"});
+    const core::Json answer = reply ? core::Json::parse(*reply, nullptr, false) : core::Json();
+    if (answer.is_object() && answer.value("ok", false)) {
+        const auto& result = answer["result"];
+        notify(L"Break", platform::widen(result.value("ok", false) ? std::string("Five minutes. It ends on its own.")
+                                                                    : result.value("message", std::string("Not possible right now."))));
+    } else {
+        notify(L"Break", L"The service isn't running.");
+    }
+}
+
+void show_menu() {
+    HMENU menu = CreatePopupMenu();
+    AppendMenuW(menu, MF_STRING | MF_GRAYED, 0, g_tray.tip.c_str());
+    AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(menu, MF_STRING, kOpen, L"Open Sirenproof");
+    AppendMenuW(menu, MF_STRING, kBreak, L"Take a 5-minute break");
+    AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(menu, MF_STRING, kQuit, L"Hide this icon (blocking carries on)");
+    SetMenuDefaultItem(menu, kOpen, FALSE);
+
+    POINT cursor{};
+    GetCursorPos(&cursor);
+    SetForegroundWindow(g_tray.window);  // so the menu closes when you click elsewhere
+    const UINT chosen = static_cast<UINT>(TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_BOTTOMALIGN,
+                                                         cursor.x, cursor.y, 0, g_tray.window, nullptr));
+    DestroyMenu(menu);
+    PostMessageW(g_tray.window, WM_NULL, 0, 0);
+
+    if (chosen == kOpen) open_window();
+    if (chosen == kBreak) take_break();
+    if (chosen == kQuit) DestroyWindow(g_tray.window);
+}
+
+LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
+    if (message == kTrayMessage) {
+        switch (LOWORD(lparam)) {
+            case NIN_SELECT:
+            case NIN_KEYSELECT:
+                open_window();
+                return 0;
+            case WM_CONTEXTMENU:
+                show_menu();
+                return 0;
+            default:
+                return 0;
+        }
+    }
+    if (message == g_tray.taskbar_created && message != 0) {  // Explorer restarted: put the icon back
+        add_icon();
+        return 0;
+    }
+    switch (message) {
+        case WM_TIMER:
+            if (wparam == kPollTimer) refresh(true);
+            return 0;
+        case WM_DESTROY: {
+            NOTIFYICONDATAW data = icon_data();
+            Shell_NotifyIconW(NIM_DELETE, &data);
+            PostQuitMessage(0);
+            return 0;
+        }
+        default:
+            return DefWindowProcW(window, message, wparam, lparam);
+    }
+}
+
+}  // namespace
+
+int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
+    int argc = 0;
+    LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    bool self_test = false;
+    for (int i = 1; i < argc; ++i) {
+        const std::wstring_view arg = argv[i];
+        if (arg == L"--self-test") self_test = true;
+        if (arg == L"--pipe" && i + 1 < argc) g_tray.pipe = argv[++i];
+    }
+    LocalFree(argv);
+
+    // One tray icon per signed-in user.
+    HANDLE single = CreateMutexW(nullptr, TRUE, L"Local\\SirenproofTray");
+    if (!self_test && GetLastError() == ERROR_ALREADY_EXISTS) return 0;
+
+    WNDCLASSEXW window_class{};
+    window_class.cbSize = sizeof(window_class);
+    window_class.lpfnWndProc = window_proc;
+    window_class.hInstance = instance;
+    window_class.lpszClassName = L"SirenproofTray";
+    RegisterClassExW(&window_class);
+    g_tray.window = CreateWindowExW(0, window_class.lpszClassName, L"Sirenproof", 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr,
+                                    instance, nullptr);
+    g_tray.taskbar_created = RegisterWindowMessageW(L"TaskbarCreated");
+    g_tray.icon = make_icon(GetSystemMetrics(SM_CXSMICON) * 2);
+    if (!g_tray.window || !g_tray.icon || !add_icon()) return 1;
+    refresh(false);
+
+    if (self_test) {
+        // Say what the tooltip reads, for whoever started us with standard output redirected.
+        const std::string line = platform::narrow(g_tray.tip) + "\n";
+        DWORD written = 0;
+        WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), line.data(), static_cast<DWORD>(line.size()), &written, nullptr);
+        DestroyWindow(g_tray.window);
+        return 0;
+    }
+
+    SetTimer(g_tray.window, kPollTimer, kPollMs, nullptr);
+    MSG message;
+    while (GetMessageW(&message, nullptr, 0, 0) > 0) {
+        TranslateMessage(&message);
+        DispatchMessageW(&message);
+    }
+    if (g_tray.ui_process) CloseHandle(g_tray.ui_process);
+    DestroyIcon(g_tray.icon);
+    if (single) CloseHandle(single);
+    return 0;
+}

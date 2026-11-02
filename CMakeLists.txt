@@ -24,7 +24,16 @@ add_subdirectory(core)
 add_subdirectory(platform)
 add_subdirectory(service)
 add_subdirectory(host)
+add_subdirectory(tray)
 add_subdirectory(cli)
+
+# The main window needs Qt 6 (MSYS2: qt6-base, qt6-declarative); everything else builds without it.
+find_package(Qt6 6.8 QUIET COMPONENTS Quick QuickControls2)
+if(Qt6_FOUND)
+    add_subdirectory(ui)
+else()
+    message(STATUS "Qt 6 not found: skipping the main window (ui/)")
+endif()
 
 if(SIRENPROOF_BUILD_TESTS)
     enable_testing()
