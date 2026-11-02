@@ -1,5 +1,7 @@
 #pragma once
 
+#include <condition_variable>
+#include <cstdint>
 #include <expected>
 #include <filesystem>
 #include <functional>
@@ -9,6 +11,7 @@
 #include <string_view>
 
 #include "sirenproof/core/clock.hpp"
+#include "sirenproof/core/json_codec.hpp"
 #include "sirenproof/core/policy.hpp"
 #include "sirenproof/platform/app_blocker.hpp"
 #include "sirenproof/platform/browsers.hpp"
@@ -59,10 +62,16 @@ public:
     bool can_stop();
 
     static constexpr std::chrono::minutes kDebugLockCap{2};
+    // How long events.wait holds a request before answering anyway; under the pipe's idle timeout.
+    static constexpr std::chrono::seconds kEventWait{25};
 
 private:
     void step();                     // one pass; the caller holds mutex_
     void save(bool force);           // the caller holds mutex_
+    void changed_for_clients();      // wakes events.wait
+    std::uint64_t events_seq_value();
+    // Programs waiting at the pause, with what the tray needs to show it; the caller holds mutex_.
+    core::Json paused_json() const;
     bool can_stop_locked(core::TimePoint now) const;
     core::TimePoint now() const { return clock_->now(); }
     void warn_once(std::string& last, const std::string& message);
@@ -83,6 +92,14 @@ private:
     platform::SystemRandom random_;
     std::optional<platform::PipeServer> pipe_;
     platform::Handle wake_;
+
+    // Clients such as the tray wait (events.wait) for anything they show to change, instead of asking
+    // every few seconds. Separate from mutex_, so waiting never holds up the service.
+    std::mutex events_mutex_;
+    std::condition_variable events_cv_;
+    std::uint64_t events_seq_ = 0;
+    bool stopping_ = false;
+    std::string last_client_view_;
 
     std::string last_saved_;  // state without the clock, as last written
     std::chrono::steady_clock::time_point last_save_{};

@@ -216,6 +216,10 @@ int run_status(const Options& o) {
     if (r["apps"].empty()) std::cout << "none";
     for (const auto& a : r["apps"]) std::cout << a.value("action", "") << " " << a.value("target", "") << " (" << a.value("rule", "") << ")  ";
     std::cout << "\n";
+    for (const auto& p : r.value("paused", Json::array())) {
+        std::cout << "Paused:        " << p.value("program", "") << " (" << p.value("rule", "")
+                  << ")  (sirenproof continue " << p.value("rule", "") << ")\n";
+    }
     for (const auto& p : r["pending"]) {
         std::cout << "Waiting:       " << p.value("id", "") << " " << p.value("what", "") << " at " << local(p["applies_at"])
                   << "  (sirenproof cancel " << p.value("id", "") << ")\n";

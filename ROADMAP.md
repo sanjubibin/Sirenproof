@@ -28,8 +28,8 @@ Where Sirenproof stands and what comes next. The reasoning behind each step is i
 - [ ] Ready-made lists in the Rules screen
 - [ ] The typing and friend-code unlock challenges, polished
 - [x] "Lock down this PC" setup: a standard account for daily use ([plan §3.8](docs/PLAN.md#38-lock-down-this-pc))
-- [ ] Pause overlay for programs on a Nudge rule (Direct2D)
-- [ ] Events from the service, so the tray no longer asks every 15 seconds (the budget asks for no timers
+- [x] Pause overlay for programs on a Nudge rule (Direct2D)
+- [x] Events from the service, so the tray no longer asks every 15 seconds (the budget asks for no timers
       while nothing is active). The pause overlay needs them too.
 - [ ] Measure every budget in [plan §3.7](docs/PLAN.md#37-interface). So far the tray uses 1.6 MB of
       private memory (budget 3 MB).

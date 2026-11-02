@@ -1,8 +1,10 @@
-// sirenproof-tray: the tray icon. Shows whether a lock holds, opens the main window, offers a break and
-// says when a lock starts or ends. It asks the service every 15 seconds and otherwise sleeps.
+// sirenproof-tray: the tray icon. Shows whether a lock holds, opens the main window, offers a break,
+// says when a lock starts or ends, and shows the pause when a Nudge rule catches a program. It doesn't
+// poll: a thread waits for the service to say something changed (events.wait), and otherwise it sleeps.
 //
 //   sirenproof-tray [--pipe <name>]
 //   sirenproof-tray --self-test [--pipe <name>]   add the icon, ask the service once, remove it, exit
+//   sirenproof-tray --pause-preview <file.png> [--elapsed <seconds>]   draw the pause into a file
 
 #include "sirenproof/platform/win.hpp"
 
@@ -12,10 +14,15 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cwctype>
+#include <filesystem>
 #include <format>
+#include <memory>
 #include <optional>
 #include <string>
+#include <thread>
 
+#include "pause_overlay.hpp"
 #include "sirenproof/core/json_codec.hpp"
 #include "sirenproof/core/time.hpp"
 #include "sirenproof/platform/paths.hpp"
@@ -27,8 +34,7 @@ using namespace sirenproof;
 namespace {
 
 constexpr UINT kTrayMessage = WM_APP + 1;
-constexpr UINT_PTR kPollTimer = 1;
-constexpr UINT kPollMs = 15'000;
+constexpr UINT kChangedMessage = WM_APP + 2;  // from the watcher thread: ask the service again
 constexpr UINT kIconId = 1;
 enum Command : UINT { kOpen = 1, kBreak, kQuit };
 
@@ -41,6 +47,7 @@ struct TrayState {
     std::optional<std::string> lock_until;  // end of the lock that holds, if one does
     HANDLE ui_process = nullptr;
     DWORD ui_pid = 0;
+    std::unique_ptr<tray::PauseOverlay> pause;
 };
 TrayState g_tray;
 
@@ -92,8 +99,8 @@ HICON make_icon(int size) {
     return icon;
 }
 
-std::optional<core::Json> ask(std::string_view op) {
-    const core::Json request{{"v", 1}, {"op", op}, {"args", core::Json::object()}};
+std::optional<core::Json> ask(std::string_view op, core::Json args = core::Json::object()) {
+    const core::Json request{{"v", 1}, {"op", op}, {"args", std::move(args)}};
     const auto reply = platform::pipe_call(g_tray.pipe, request.dump(),
                                            {std::chrono::seconds{2}, platform::executable_dir() / L"sirenproof-service.exe"});
     if (!reply) return std::nullopt;
@@ -161,6 +168,61 @@ void refresh(bool announce) {
     data.uFlags = NIF_TIP | NIF_SHOWTIP;
     tip.copy(data.szTip, std::size(data.szTip) - 1);
     Shell_NotifyIconW(NIM_MODIFY, &data);
+
+    // The pause: shown for the first program waiting at it, gone when none is (or the service is).
+    if (!g_tray.pause) return;
+    const core::Json paused = status ? (*status).value("paused", core::Json::array()) : core::Json::array();
+    if (!paused.is_array() || paused.empty()) {
+        g_tray.pause->hide();
+        return;
+    }
+    const core::Json& first = paused[0];
+    tray::PauseView view;
+    view.id = first.value("id", std::string{});
+    view.rule = first.value("rule", std::string{});
+    std::wstring program = std::filesystem::path(platform::widen(first.value("program", std::string{}))).stem().native();
+    if (!program.empty()) program[0] = static_cast<wchar_t>(towupper(program[0]));
+    view.program = program;
+    view.rule_name = platform::widen(first.value("rule_name", std::string{}));
+    view.goal = platform::widen(first.value("goal", std::string{}));
+    view.pause_seconds = first.value("pause_seconds", 15);
+    view.continue_minutes = first.value("continue_minutes", 5);
+    g_tray.pause->show(view, std::chrono::seconds{first.value("waited_seconds", 0)});
+}
+
+// "Close it" or "Continue" at the pause. The service does it; the next change hides the pause.
+void choose_at_pause(const tray::PauseView& view, bool close) {
+    const auto result = close ? ask("paused.close", {{"id", view.id}}) : ask("nudge.continue", {{"rule", view.rule}});
+    if (!result) {
+        notify(L"Sirenproof", L"The service didn't answer.");
+    } else if (!(*result).value("ok", false)) {
+        notify(L"Sirenproof", platform::widen((*result).value("message", std::string("That didn't work."))));
+    }
+    g_tray.pause->hide();
+    refresh(false);
+}
+
+// Waits for the service to say something changed, and tells the window. When the service isn't
+// running it tries again every few seconds; otherwise nothing happens until something changes.
+void watch_service(HWND window, std::wstring pipe) {
+    std::uint64_t seen = 0;
+    bool reachable = true;
+    for (;;) {
+        const core::Json request{{"v", 1}, {"op", "events.wait"}, {"args", {{"after", seen}}}};
+        const auto reply = platform::pipe_call(pipe, request.dump(),
+                                               {std::chrono::seconds{35}, platform::executable_dir() / L"sirenproof-service.exe"});
+        const core::Json answer = reply ? core::Json::parse(*reply, nullptr, false) : core::Json();
+        if (answer.is_object() && answer.value("ok", false)) {
+            const auto seq = answer["result"].value("seq", seen);
+            if (seq != seen || !reachable) PostMessageW(window, kChangedMessage, 0, 0);
+            seen = seq;
+            reachable = true;
+        } else {
+            if (reachable) PostMessageW(window, kChangedMessage, 0, 0);
+            reachable = false;
+            std::this_thread::sleep_for(std::chrono::seconds{5});
+        }
+    }
 }
 
 BOOL CALLBACK focus_if_ui(HWND window, LPARAM) {
@@ -195,14 +257,9 @@ void open_window() {
 }
 
 void take_break() {
-    const core::Json request{{"v", 1}, {"op", "break.start"}, {"args", core::Json::object()}};
-    const auto reply = platform::pipe_call(g_tray.pipe, request.dump(),
-                                           {std::chrono::seconds{2}, platform::executable_dir() / L"sirenproof-service.exe"});
-    const core::Json answer = reply ? core::Json::parse(*reply, nullptr, false) : core::Json();
-    if (answer.is_object() && answer.value("ok", false)) {
-        const auto& result = answer["result"];
-        notify(L"Break", platform::widen(result.value("ok", false) ? std::string("Five minutes. It ends on its own.")
-                                                                    : result.value("message", std::string("Not possible right now."))));
+    if (const auto result = ask("break.start")) {
+        notify(L"Break", platform::widen((*result).value("ok", false) ? std::string("Five minutes. It ends on its own.")
+                                                                       : (*result).value("message", std::string("Not possible right now."))));
     } else {
         notify(L"Break", L"The service isn't running.");
     }
@@ -250,8 +307,8 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lp
         return 0;
     }
     switch (message) {
-        case WM_TIMER:
-            if (wparam == kPollTimer) refresh(true);
+        case kChangedMessage:
+            refresh(true);
             return 0;
         case WM_DESTROY: {
             NOTIFYICONDATAW data = icon_data();
@@ -267,15 +324,30 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lp
 }  // namespace
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
+    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);  // a crisp pause on any screen
+
     int argc = 0;
     LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
     bool self_test = false;
+    std::wstring preview;
+    double elapsed = 5;
     for (int i = 1; i < argc; ++i) {
         const std::wstring_view arg = argv[i];
         if (arg == L"--self-test") self_test = true;
         if (arg == L"--pipe" && i + 1 < argc) g_tray.pipe = argv[++i];
+        if (arg == L"--pause-preview" && i + 1 < argc) preview = argv[++i];
+        if (arg == L"--elapsed" && i + 1 < argc) elapsed = _wtof(argv[++i]);
     }
     LocalFree(argv);
+
+    if (!preview.empty()) {
+        tray::PauseView view;
+        view.id = "n1";
+        view.program = L"Steam";
+        view.rule_name = L"School nights";
+        view.goal = L"Finish the history essay";
+        return tray::render_pause_png(view, elapsed, 1280, 800, preview) ? 0 : 1;
+    }
 
     // One tray icon per signed-in user.
     HANDLE single = CreateMutexW(nullptr, TRUE, L"Local\\SirenproofTray");
@@ -303,12 +375,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
         return 0;
     }
 
-    SetTimer(g_tray.window, kPollTimer, kPollMs, nullptr);
+    g_tray.pause = std::make_unique<tray::PauseOverlay>(instance, choose_at_pause);
+    // The watcher lives as long as the program; it holds nothing that needs tidying up.
+    std::thread(watch_service, g_tray.window, g_tray.pipe).detach();
+
     MSG message;
     while (GetMessageW(&message, nullptr, 0, 0) > 0) {
         TranslateMessage(&message);
         DispatchMessageW(&message);
     }
+    g_tray.pause.reset();
     if (g_tray.ui_process) CloseHandle(g_tray.ui_process);
     DestroyIcon(g_tray.icon);
     if (single) CloseHandle(single);

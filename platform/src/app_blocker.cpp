@@ -65,8 +65,12 @@ int AppBlocker::sweep(const Decide& decide, const std::vector<std::string>& acti
                 tracked.eligible = false;  // gone already, or not ours to inspect
             }
             if (it != processes_.end() && it->second.details.started == tracked.details.started) {
-                tracked.close_at = it->second.close_at;  // same process: keep its countdown
+                tracked.close_at = it->second.close_at;  // same process: keep its countdown and its pause
                 tracked.reported = it->second.reported;
+                tracked.pause_id = it->second.pause_id;
+                tracked.pause_rule = it->second.pause_rule;
+                tracked.paused_since = it->second.paused_since;
+                tracked.pause_dismissed = it->second.pause_dismissed;
             }
             it = processes_.insert_or_assign(entry.pid, std::move(tracked)).first;
         }
@@ -76,14 +80,23 @@ int AppBlocker::sweep(const Decide& decide, const std::vector<std::string>& acti
 
         const core::Verdict verdict = decide(process.details.identity);
         const std::string& path = process.details.identity.path;
+        if (verdict.action != core::Action::Nudge) {
+            process.pause_id.clear();
+            process.pause_dismissed = false;
+        }
         if (verdict.action == core::Action::Allow) {
             process.close_at.reset();
             process.reported = false;
             continue;
         }
         if (verdict.action == core::Action::Nudge) {
-            if (!process.reported) log_.info(std::format("nudge for {} (rule {}): the pause screen comes with the tray app", path, verdict.rule_id));
-            process.reported = true;
+            process.close_at.reset();
+            if (process.pause_id.empty() && !process.pause_dismissed) {
+                process.pause_id = "n" + std::to_string(++pauses_);
+                process.paused_since = now;
+                log_.info(std::format("paused {} (rule {}) until it's continued or closed", path, verdict.rule_id));
+            }
+            process.pause_rule = verdict.rule_id;
             continue;
         }
 
@@ -115,6 +128,35 @@ int AppBlocker::sweep(const Decide& decide, const std::vector<std::string>& acti
 
     std::erase_if(processes_, [&](const auto& entry) { return !alive.contains(entry.first); });
     return closed;
+}
+
+std::vector<AppBlocker::Paused> AppBlocker::paused() const {
+    std::vector<Paused> waiting;
+    for (const auto& [pid, process] : processes_) {
+        if (process.pause_id.empty()) continue;
+        waiting.push_back({process.pause_id, pid, process.details.identity.path, process.pause_rule, process.paused_since});
+    }
+    std::ranges::sort(waiting, {}, &Paused::since);
+    return waiting;
+}
+
+std::expected<void, std::string> AppBlocker::close_paused(std::string_view id) {
+    const auto it = std::ranges::find_if(processes_, [&](const auto& entry) { return entry.second.pause_id == id; });
+    if (it == processes_.end()) return std::unexpected("that program isn't waiting at the pause any more");
+    Tracked& process = it->second;
+    const std::string& path = process.details.identity.path;
+    if (dry_run_) {
+        log_.info(std::format("dry run: would close {} (rule {})", path, process.pause_rule));
+        process.pause_id.clear();
+        process.pause_dismissed = true;
+        return {};
+    }
+    if (!terminate_process(process.details.pid, process.details.started)) {
+        return std::unexpected("couldn't close it: " + last_error_text());
+    }
+    log_.info(std::format("closed {} at the pause (rule {})", path, process.pause_rule));
+    processes_.erase(it);
+    return {};
 }
 
 }  // namespace sirenproof::platform

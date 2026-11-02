@@ -43,6 +43,12 @@ milestone, newest first. What comes next is in the [roadmap](ROADMAP.md).
     - The right-click menu offers a 5-minute break.
     - It notifies you when a lock starts or ends.
     - `--self-test` checks it without leaving an icon behind.
+    - It no longer asks the service every 15 seconds: it waits for the service to say something changed
+      (`events.wait`), so it does nothing at all while nothing happens.
+  - **The pause for programs.** A program caught by a Nudge rule is neither closed nor frozen: the tray
+    covers the screen with a pause showing your goal and a countdown, then offers "Continue for 5
+    minutes" or "Close it". Drawn with Direct2D; `sirenproof-tray --pause-preview <file.png>` draws it
+    into a file. `sirenproof status` lists programs waiting at the pause.
   - CI builds the main window with Qt and loads it offscreen.
 
 - **Browsers (M3)**

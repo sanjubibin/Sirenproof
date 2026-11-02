@@ -61,6 +61,20 @@ a screen without a window, `sirenproof-ui.exe --screen rules --screenshot rules.
 Add `--palette "lock youtube 2h"` to see the command palette, or `--run "<command>"` to see what a command
 does.
 
+### The pause for programs
+
+With the console service and the tray running, put a Nudge rule on a harmless program and open it:
+
+```powershell
+build\debug\bin\sirenproof.exe block app:notepad.exe --nudge --goal "Finish the report"
+notepad
+```
+
+Within a second the pause covers the screen: your goal, a 15-second countdown, then **Continue for 5
+minutes** or **Close Notepad**. In a dry run, closing only logs what it would do. `sirenproof status`
+lists the program as paused while it waits. To see the pause without a service,
+`sirenproof-tray.exe --pause-preview pause.png --elapsed 5` draws it into a file.
+
 ## Trying the browser extension safely
 
 The extension only blocks pages. In console mode the service still uses its stand-in hosts file and

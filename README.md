@@ -39,8 +39,9 @@ lecturing you.
   - the main window's Now, Rules and Start a lock screens, with hold-to-lock, unlock early, a live
     rule tester, a schedule painter and a command palette (Ctrl+K);
   - the "Lock down this PC" setup, which guides you to a standard account for everyday use;
-  - the tray icon, which shows whether a lock holds, opens the window and offers a break.
-  - Still to come: the pause overlay for programs.
+  - the tray icon, which shows whether a lock holds, opens the window and offers a break;
+  - the pause for programs on a Nudge rule, drawn over the screen by the tray.
+  - Still to do: measuring the interface's speed and memory budgets, and a usability test.
 
 See the [roadmap](ROADMAP.md) for what's next and the [changelog](CHANGELOG.md) for what has changed.
 The reasoning behind both is in the [plan](docs/PLAN.md#8-milestones).

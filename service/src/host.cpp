@@ -91,6 +91,11 @@ void Host::run(HANDLE stop, const std::function<void(bool)>& on_stoppable) {
 }
 
 void Host::finish() {
+    {
+        const std::scoped_lock lock(events_mutex_);
+        stopping_ = true;
+    }
+    events_cv_.notify_all();
     if (pipe_) {
         pipe_->stop();
         pipe_.reset();
@@ -186,6 +191,25 @@ void Host::step() {
     } else {
         browsers_.relax();
     }
+
+    // 6. Wake waiting clients (the tray) when anything they show has changed.
+    core::State shown = state_;
+    shown.clock.reset();
+    std::string view = core::serialise_state(shown);
+    for (const std::string& id : plan.active_rules) view += "\nactive " + id;
+    for (const auto& paused : apps_.paused()) view += "\npaused " + paused.id;
+    if (view != last_client_view_) {
+        last_client_view_ = std::move(view);
+        changed_for_clients();
+    }
+}
+
+void Host::changed_for_clients() {
+    {
+        const std::scoped_lock lock(events_mutex_);
+        ++events_seq_;
+    }
+    events_cv_.notify_all();
 }
 
 void Host::save(bool force) {

@@ -90,6 +90,29 @@ std::string reply_error(std::string_view message) { return Json{{"ok", false}, {
 
 }  // namespace
 
+std::uint64_t Host::events_seq_value() {
+    const std::scoped_lock lock(events_mutex_);
+    return events_seq_;
+}
+
+Json Host::paused_json() const {
+    Json list = Json::array();
+    const auto now = std::chrono::system_clock::now();
+    for (const platform::AppBlocker::Paused& paused : apps_.paused()) {
+        const core::Rule* rule = engine_.find_rule(paused.rule_id);
+        list.push_back({{"id", paused.id},
+                        {"program", platform::narrow(std::filesystem::path(platform::widen(paused.path)).filename().native())},
+                        {"path", paused.path},
+                        {"rule", paused.rule_id},
+                        {"rule_name", rule ? rule->name : std::string{}},
+                        {"goal", rule ? rule->goal : std::string{}},
+                        {"waited_seconds", std::chrono::duration_cast<std::chrono::seconds>(now - paused.since).count()},
+                        {"pause_seconds", state_.settings.nudge_pause.count()},
+                        {"continue_minutes", state_.settings.nudge_continue.count()}});
+    }
+    return list;
+}
+
 std::string Host::handle(std::string_view request, const platform::PipeClient& client) {
     const Json message = Json::parse(request, nullptr, false);
     if (message.is_discarded() || !message.is_object()) return reply_error("not a JSON object");
@@ -112,6 +135,16 @@ std::string Host::handle(std::string_view request, const platform::PipeClient& c
     // Which browser the relay serves comes from the process tree, never from the message.
     std::optional<std::filesystem::path> browser;
     if (op == "ext.hello" || op == "ext.heartbeat") browser = platform::browser_ancestor(client.pid);
+
+    // A client waiting for something to change (the tray): answers as soon as the change count moves
+    // past `after`, or after kEventWait anyway. It never holds the state while it waits.
+    if (op == "events.wait") {
+        const std::uint64_t after =
+            args.contains("after") && args["after"].is_number_unsigned() ? args["after"].get<std::uint64_t>() : 0;
+        std::unique_lock lock(events_mutex_);
+        events_cv_.wait_for(lock, kEventWait, [&] { return events_seq_ != after || stopping_; });
+        return reply_ok(Json{{"seq", events_seq_}});
+    }
 
     try {
         const std::scoped_lock lock(mutex_);
@@ -164,6 +197,8 @@ std::string Host::handle(std::string_view request, const platform::PipeClient& c
                           {"can_stop", can_stop_locked(t)},
                           {"browser_policies", web_lock_},
                           {"browsers_without_extension", browsers_.unprotected()},
+                          {"paused", paused_json()},
+                          {"seq", events_seq_value()},
                           {"log", log_.recent(15)}};
         } else if (op == "rules.list") {
             changed = false;
@@ -206,6 +241,11 @@ std::string Host::handle(std::string_view request, const platform::PipeClient& c
             result = Json{{"cancelled", engine_.cancel_pending(text_arg(args, "id"))}};
         } else if (op == "break.start") {
             result = action_json(engine_.start_break(t));
+        } else if (op == "paused.close") {
+            const auto closed = apps_.close_paused(text_arg(args, "id"));
+            result = !closed ? Json{{"ok", false}, {"message", closed.error()}}
+                     : options_.dry_run ? Json{{"ok", true}, {"message", "dry run: nothing was closed"}}
+                                        : Json{{"ok", true}, {"message", "closed"}};
         } else if (op == "nudge.continue") {
             result = action_json(engine_.continue_after_nudge(text_arg(args, "rule"), t));
         } else if (op == "unlock.request") {

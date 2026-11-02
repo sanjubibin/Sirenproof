@@ -351,6 +351,73 @@ TEST_CASE("AppBlocker never closes its own process, whatever a rule says", "[pla
     CHECK(blocker.sweep(block_me, {"me"}, now + std::chrono::hours{1}) == 0);
 }
 
+namespace {
+
+// A decision that nudges the sleeper while `nudging` is true, and allows it otherwise.
+AppBlocker::Decide nudge_sleeper(const bool& nudging) {
+    return [&nudging](const core::AppIdentity& app) {
+        core::Verdict v;
+        if (nudging && app.path.ends_with("sleeper.exe")) {
+            v.action = core::Action::Nudge;
+            v.rule_id = "games";
+            v.strength = core::Strength::Nudge;
+        }
+        return v;
+    };
+}
+
+}  // namespace
+
+TEST_CASE("AppBlocker pauses a nudged program and closes it only when asked", "[platform][apps]") {
+    if (!in_desktop_session()) SKIP("needs a desktop session: Sirenproof never closes session-0 services");
+    Logger log = quiet_log();
+    AppBlocker blocker(false, log);
+    Sleeper sleeper;
+    const bool nudging = true;
+    const auto now = std::chrono::system_clock::now();
+
+    CHECK(blocker.sweep(nudge_sleeper(nudging), {"games"}, now) == 0);
+    REQUIRE(blocker.paused().size() == 1);
+    const AppBlocker::Paused paused = blocker.paused().front();
+    CHECK(paused.pid == sleeper.info.dwProcessId);
+    CHECK(paused.rule_id == "games");
+
+    // A nudge never closes anything by itself, however long it waits; it keeps the same pause.
+    CHECK(blocker.sweep(nudge_sleeper(nudging), {"games"}, now + std::chrono::hours{1}) == 0);
+    CHECK_FALSE(sleeper.exited_within(200));
+    REQUIRE(blocker.paused().size() == 1);
+    CHECK(blocker.paused().front().id == paused.id);
+
+    CHECK_FALSE(blocker.close_paused("n999"));
+    REQUIRE(blocker.close_paused(paused.id));
+    CHECK(sleeper.exited_within(5000));
+    CHECK(blocker.paused().empty());
+}
+
+TEST_CASE("Going on after a nudge ends the pause; a dry run only lets it go", "[platform][apps]") {
+    if (!in_desktop_session()) SKIP("needs a desktop session: Sirenproof never touches session-0 services");
+    Logger log = quiet_log();
+    Sleeper sleeper;
+    bool nudging = true;
+    const auto now = std::chrono::system_clock::now();
+
+    AppBlocker blocker(false, log);
+    blocker.sweep(nudge_sleeper(nudging), {"games"}, now);
+    REQUIRE(blocker.paused().size() == 1);
+    nudging = false;  // "continue for 5 minutes": the rule lets it go on
+    blocker.sweep(nudge_sleeper(nudging), {"games"}, now + std::chrono::seconds{20});
+    CHECK(blocker.paused().empty());
+
+    nudging = true;
+    AppBlocker dry(true, log);
+    dry.sweep(nudge_sleeper(nudging), {"games"}, now);
+    REQUIRE(dry.paused().size() == 1);
+    REQUIRE(dry.close_paused(dry.paused().front().id));
+    CHECK_FALSE(sleeper.exited_within(200));
+    dry.sweep(nudge_sleeper(nudging), {"games"}, now + std::chrono::seconds{1});
+    CHECK(dry.paused().empty());  // not paused again straight away
+}
+
 // ---------------------------------------------------------------------------------------------------
 // Clock and randomness
 
