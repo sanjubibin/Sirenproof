@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Sirenproof",
+  "version": "0.1.0",
+  "description": "Blocks the pages you chose, on your own rules. Works with the Sirenproof app for Windows; nothing leaves your PC.",
+  "minimum_chrome_version": "110",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnabwupRrJJFiESqrvOrJHCiHz7sh7vWfI5SKblv0033tl+QKaip/+N5Sx/Rf7ub0Om6HGmvW/pxnV74BVJs48Vlu3eaObEacj8BOKyjzXJwt08RokcabaPsmmHHWhfLJJlkh2P9Al/VX0ZZsUDyKsdun8Z0Cbqu4FYGoEkmDcFXsTG1LqZqjIJGCJU1Bm4+ZksZ58ats4cgiCLMC60/c/WE4+dXDrGOjMs6EUUv+V+9mGjmLxuiKDxishakS0ajJCOwFRxlrXBTFdg7685zcwLswO0s8KLsg5Q8T176ad3+xBr5K0SOeVC0zsr+VgxyAhOcFqNIrVmQLMeIZcY304QIDAQAB",
+  "permissions": ["nativeMessaging", "webNavigation", "tabs"],
+  "background": { "service_worker": "background.js" }
+}

@@ -26,13 +26,16 @@ constexpr bool kEnforceByDefault = !service::kDebugBuild;
 
 constexpr const char* kUsage = R"(Usage:
   sirenproof-service console [--data-dir <dir>] [--hosts-file <file>] [--pipe <name>] [--enforce | --dry-run]
+                             [--real-browser-policies] [--guard-browsers]
   sirenproof-service install [--enforce | --dry-run] [--allow-any-location]
   sirenproof-service uninstall [--remove-data]
   sirenproof-service --version
 
 console   Runs the service in this window until Ctrl+C. Defaults are safe for development:
           data in .\dev-data next to this exe, and a stand-in hosts file there too. The real hosts
-          file is only touched if you pass it with --hosts-file.
+          file is only touched if you pass it with --hosts-file, and real browser policies only with
+          --real-browser-policies. Browsers without the extension are never closed in console mode
+          unless you pass --guard-browsers.
 install   Needs an administrator prompt, and this exe in a folder like C:\Program Files\Sirenproof.
           --allow-any-location skips that check: only for a test virtual machine.
 )";
@@ -81,8 +84,19 @@ int run_console(std::vector<std::wstring> args) {
     const std::wstring data_dir = take_value(args, L"--data-dir");
     const std::wstring hosts_file = take_value(args, L"--hosts-file");
     const std::wstring pipe = take_value(args, L"--pipe");
+    const bool real_policies = take_flag(args, L"--real-browser-policies");
+    options.guard_browsers = take_flag(args, L"--guard-browsers");
     options.dry_run = !enforce_option(args);
     if (!args.empty()) return fail("unknown option " + platform::narrow(args.front()));
+
+    // Like the stand-in hosts file: browser policies go somewhere browsers don't read, unless asked.
+    if (real_policies) {
+        options.policies_root = HKEY_LOCAL_MACHINE;
+        options.policies_path = L"SOFTWARE\\Policies";
+    } else {
+        options.policies_root = HKEY_CURRENT_USER;
+        options.policies_path = L"Software\\SirenproofDev\\StandInPolicies";
+    }
 
     options.data_dir = data_dir.empty() ? platform::executable_dir() / L"dev-data" : fs::path(data_dir);
     options.hosts_file = hosts_file.empty() ? options.data_dir / L"hosts" : fs::path(hosts_file);

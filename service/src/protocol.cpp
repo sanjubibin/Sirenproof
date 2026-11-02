@@ -3,15 +3,17 @@
 //   request  {"v": 1, "op": "rules.add", "args": {...}}
 //   reply    {"ok": true, "result": {...}}  or  {"ok": false, "error": "why"}
 //
-// Every op is something the interactive user may do. Nothing here can run a program, write an
-// address other than 0.0.0.0 / :: or touch files outside the service's own; the worst a client can
-// do is block more.
+// Every op is something the interactive user may do, except the ext.* ops, which only the browser
+// relay may use (and it may use nothing else). Nothing here can run a program, write an address other
+// than 0.0.0.0 / :: or touch files outside the service's own; the worst a client can do is block more.
 
 #include <format>
 
 #include "host.hpp"
+#include "sirenproof/core/browser.hpp"
 #include "sirenproof/core/json_codec.hpp"
 #include "sirenproof/core/version.hpp"
+#include "sirenproof/platform/paths.hpp"
 
 namespace sirenproof::service {
 
@@ -97,6 +99,20 @@ std::string Host::handle(std::string_view request, const platform::PipeClient& c
     const Json args = message.contains("args") ? message["args"] : Json::object();
     if (!args.is_object()) return reply_error("args must be an object");
 
+    // The browser relay (sirenproof-host.exe from this folder) may only use the extension operations,
+    // and only it may: a heartbeat from anything else could fake "this browser has the extension".
+    const std::filesystem::path caller = platform::process_image_path(client.pid);
+    const std::wstring relay = (platform::executable_dir() / L"sirenproof-host.exe").native();
+    const bool from_relay =
+        !caller.empty() && CompareStringOrdinal(caller.c_str(), -1, relay.c_str(), -1, TRUE) == CSTR_EQUAL;
+    if (core::is_extension_op(op) != from_relay) {
+        return reply_error(from_relay ? "the browser relay may only ask about pages"
+                                      : "only Sirenproof's browser relay may do that");
+    }
+    // Which browser the relay serves comes from the process tree, never from the message.
+    std::optional<std::filesystem::path> browser;
+    if (op == "ext.hello" || op == "ext.heartbeat") browser = platform::browser_ancestor(client.pid);
+
     try {
         const std::scoped_lock lock(mutex_);
         const core::TimePoint t = now();
@@ -137,6 +153,8 @@ std::string Host::handle(std::string_view request, const platform::PipeClient& c
                           {"unlocking", unlocking},
                           {"breaks", {{"used_today", state_.breaks.used}, {"per_day", state_.settings.breaks_per_day}}},
                           {"can_stop", can_stop_locked(t)},
+                          {"browser_policies", web_lock_},
+                          {"browsers_without_extension", browsers_.unprotected()},
                           {"log", log_.recent(15)}};
         } else if (op == "rules.list") {
             changed = false;
@@ -208,6 +226,21 @@ std::string Host::handle(std::string_view request, const platform::PipeClient& c
         } else if (op == "service.can_stop") {
             changed = false;
             result = Json{{"can_stop", can_stop_locked(t)}};
+        } else if (op == "ext.hello" || op == "ext.heartbeat") {
+            changed = false;
+            if (browser) browsers_.heartbeat(*browser, std::chrono::steady_clock::now());
+            result = Json{{"browser", browser ? Json(platform::narrow(browser->filename().native())) : Json(nullptr)},
+                          {"heartbeat_seconds", 10}};
+        } else if (op == "ext.decide") {
+            changed = false;
+            const auto url = core::Url::parse(text_arg(args, "url"));
+            const core::Verdict verdict = url ? engine_.decide(*url, t) : core::Verdict{};
+            result = verdict_json(verdict);
+            if (const core::Rule* rule = engine_.find_rule(verdict.rule_id)) result["rule_name"] = rule->name;
+            result["pause_seconds"] = state_.settings.nudge_pause.count();
+            result["continue_minutes"] = state_.settings.nudge_continue.count();
+        } else if (op == "ext.continue") {
+            result = action_json(engine_.continue_after_nudge(text_arg(args, "rule"), t));
         } else {
             return reply_error("unknown op " + op);
         }

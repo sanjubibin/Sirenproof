@@ -2,10 +2,12 @@
 
 add_library(sirenproof_platform STATIC
     src/app_blocker.cpp
+    src/browsers.cpp
     src/clock.cpp
     src/files.cpp
     src/hosts_file.cpp
     src/log.cpp
+    src/native_host.cpp
     src/paths.cpp
     src/pipe.cpp
     src/process.cpp

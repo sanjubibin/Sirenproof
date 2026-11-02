@@ -16,6 +16,7 @@ using ProcessStart = std::chrono::sys_time<std::chrono::milliseconds>;
 
 struct ProcessEntry {
     std::uint32_t pid = 0;
+    std::uint32_t parent = 0;
     std::wstring exe_name;
 };
 
@@ -36,6 +37,11 @@ std::optional<ProcessDetails> inspect_process(std::uint32_t pid);
 
 // Ends the process, but only if it's still the one that started at `started`.
 bool terminate_process(std::uint32_t pid, ProcessStart started);
+
+// The browser that started process `pid`, directly or through cmd.exe (Chrome launches native hosts
+// that way), as the path of its exe. A parent only counts if it started before its child, so a reused
+// process id can't pass for it.
+std::optional<std::filesystem::path> browser_ancestor(std::uint32_t pid);
 
 // Original filename (version resource) and publisher (a valid Authenticode signature) of an exe.
 // Both are slow to read, so they're cached per path and last-write time. Signature checks never go

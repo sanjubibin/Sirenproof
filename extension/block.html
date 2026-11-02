@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sirenproof</title>
+  <link rel="stylesheet" href="block.css">
+</head>
+<body>
+  <main class="panel">
+    <div class="ring-wrap" aria-hidden="true">
+      <svg class="ring" viewBox="0 0 120 120">
+        <circle class="ring-track" cx="60" cy="60" r="52"></circle>
+        <circle class="ring-fill" id="ring" cx="60" cy="60" r="52"></circle>
+      </svg>
+      <span class="ring-label" id="ring-label"></span>
+    </div>
+
+    <p class="eyebrow" id="kind">Blocked</p>
+    <h1 id="goal">Back to what matters.</h1>
+    <p class="detail" id="detail"></p>
+    <p class="address" id="address"></p>
+
+    <div class="actions">
+      <button type="button" id="leave" class="primary">Back to work</button>
+      <button type="button" id="continue" class="secondary" hidden disabled></button>
+    </div>
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+  </main>
+  <script src="block.js"></script>
+</body>
+</html>

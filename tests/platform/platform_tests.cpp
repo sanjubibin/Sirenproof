@@ -22,80 +22,13 @@
 #include "sirenproof/platform/process.hpp"
 #include "sirenproof/platform/state_store.hpp"
 #include "sirenproof/platform/system.hpp"
+#include "support.hpp"
 
 namespace fs = std::filesystem;
 using namespace sirenproof;
 using namespace sirenproof::platform;
+using namespace sirenproof::test;
 
-namespace {
-
-// A fresh folder under %TEMP%, removed afterwards.
-struct TempDir {
-    fs::path path;
-    TempDir() {
-        static std::atomic<int> counter{0};
-        path = fs::temp_directory_path() / std::format(L"sirenproof-test-{}-{}", GetCurrentProcessId(), ++counter);
-        fs::create_directories(path);
-    }
-    ~TempDir() {
-        std::error_code ignored;
-        for (const auto& entry : fs::recursive_directory_iterator(path, ignored)) {
-            SetFileAttributesW(entry.path().c_str(), FILE_ATTRIBUTE_NORMAL);
-        }
-        fs::remove_all(path, ignored);
-    }
-};
-
-std::string read(const fs::path& p) {
-    auto text = read_file(p);
-    REQUIRE(text.has_value());
-    return *text;
-}
-
-std::wstring unique_pipe_name() {
-    static std::atomic<int> counter{0};
-    return std::format(L"\\\\.\\pipe\\Sirenproof.test-{}-{}", GetCurrentProcessId(), ++counter);
-}
-
-Logger quiet_log() { return Logger({}, false); }
-
-// CI machines run tests as an elevated administrator, sometimes as a service in session 0; a few tests
-// only mean something for an ordinary user at a desktop.
-bool running_elevated() {
-    HANDLE token = nullptr;
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) return false;
-    TOKEN_ELEVATION elevation{};
-    DWORD size = 0;
-    const bool elevated = GetTokenInformation(token, TokenElevation, &elevation, sizeof(elevation), &size) &&
-                          elevation.TokenIsElevated != 0;
-    CloseHandle(token);
-    return elevated;
-}
-
-bool in_desktop_session() {
-    DWORD session = 0;
-    return ProcessIdToSessionId(GetCurrentProcessId(), &session) && session != 0;
-}
-
-// The sleeper test program, started suspended-free and closed again by the test or its destructor.
-struct Sleeper {
-    PROCESS_INFORMATION info{};
-    Sleeper() {
-        std::wstring command = L"\"" + widen(SIRENPROOF_SLEEPER_EXE) + L"\"";
-        STARTUPINFOW startup{};
-        startup.cb = sizeof(startup);
-        REQUIRE(CreateProcessW(nullptr, command.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr,
-                               &startup, &info));
-    }
-    ~Sleeper() {
-        TerminateProcess(info.hProcess, 0);
-        CloseHandle(info.hThread);
-        CloseHandle(info.hProcess);
-    }
-    bool exited_within(DWORD ms) const { return WaitForSingleObject(info.hProcess, ms) == WAIT_OBJECT_0; }
-};
-
-}  // namespace
 
 // ---------------------------------------------------------------------------------------------------
 // Files

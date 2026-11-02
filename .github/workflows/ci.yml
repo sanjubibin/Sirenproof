@@ -52,3 +52,14 @@ jobs:
           ./build/${{ matrix.preset }}/bin/sirenproof.exe validate examples/state.example.json
           ./build/${{ matrix.preset }}/bin/sirenproof.exe plan --state examples/state.example.json --at 2026-11-02T10:00:00Z
           ./build/${{ matrix.preset }}/bin/sirenproof-service.exe --version
+
+  extension:
+    name: extension
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test the browser extension
+        run: node --test extension/tests/background.test.mjs

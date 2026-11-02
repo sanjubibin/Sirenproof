@@ -6,6 +6,7 @@
 #include "host.hpp"
 #include "sirenproof/core/json_codec.hpp"
 #include "sirenproof/platform/files.hpp"
+#include "sirenproof/platform/native_host.hpp"
 #include "sirenproof/platform/paths.hpp"
 
 namespace sirenproof::service {
@@ -138,8 +139,16 @@ std::expected<void, std::string> install_service(bool enforce, bool allow_any_lo
             "(--allow-any-location skips this check; use it only in a test virtual machine.)");
     }
 
+    const fs::path relay = exe.parent_path() / L"sirenproof-host.exe";
+    if (!fs::exists(relay)) return std::unexpected("sirenproof-host.exe must be next to sirenproof-service.exe");
+
     ScHandle scm(OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CREATE_SERVICE));
     if (!scm) return std::unexpected("open an administrator command prompt first: " + platform::last_error_text());
+
+    // Let Chrome, Edge and Brave start the relay for the extension.
+    if (auto registered = platform::register_native_host(HKEY_LOCAL_MACHINE, relay); !registered) {
+        return std::unexpected(registered.error());
+    }
 
     const std::wstring command = L"\"" + exe.native() + L"\" run" + (enforce ? L" --enforce" : L" --dry-run");
     ScHandle service(CreateServiceW(scm.get(), kServiceName, L"Sirenproof", SERVICE_ALL_ACCESS,
@@ -199,6 +208,10 @@ std::expected<void, std::string> uninstall_service(bool remove_data) {
     platform::Logger log({}, true);
     platform::HostsFile hosts(platform::system_hosts_file(), false, log);
     if (auto cleaned = hosts.enforce({}); !cleaned) log.warn("couldn't clean the hosts file: " + cleaned.error());
+    platform::BrowserPolicies policies(HKEY_LOCAL_MACHINE, L"SOFTWARE\\Policies",
+                                       platform::program_data_dir() / L"policies.json", false, log);
+    if (auto restored = policies.set(false); !restored) log.warn("couldn't restore browser policies: " + restored.error());
+    platform::unregister_native_host(HKEY_LOCAL_MACHINE);
 
     if (!DeleteService(service.get())) return std::unexpected("can't remove the service: " + platform::last_error_text());
     if (remove_data) {

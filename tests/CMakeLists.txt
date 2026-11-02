@@ -3,6 +3,7 @@ include(Catch)
 
 add_executable(core_tests
     core/app_tests.cpp
+    core/browser_tests.cpp
     core/clock_tests.cpp
     core/crypto_tests.cpp
     core/domain_tests.cpp
@@ -26,9 +27,13 @@ catch_discover_tests(core_tests DISCOVERY_MODE PRE_TEST)
 # hosts file, services or other programs.
 add_executable(sleeper platform/sleeper.cpp)
 
-add_executable(platform_tests platform/platform_tests.cpp)
+add_executable(platform_tests
+    platform/browser_tests.cpp
+    platform/platform_tests.cpp)
 target_link_libraries(platform_tests PRIVATE Sirenproof::platform Catch2::Catch2WithMain)
-target_compile_definitions(platform_tests PRIVATE SIRENPROOF_SLEEPER_EXE="$<TARGET_FILE:sleeper>")
-add_dependencies(platform_tests sleeper)
+target_compile_definitions(platform_tests PRIVATE
+    SIRENPROOF_SLEEPER_EXE="$<TARGET_FILE:sleeper>"
+    SIRENPROOF_HOST_EXE="$<TARGET_FILE:sirenproof_host>")
+add_dependencies(platform_tests sleeper sirenproof_host)
 sirenproof_set_warnings(platform_tests)
 catch_discover_tests(platform_tests DISCOVERY_MODE PRE_TEST)

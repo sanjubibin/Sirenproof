@@ -28,6 +28,8 @@ Host::Host(HostOptions options, platform::Logger& log)
       store_(options_.data_dir),
       hosts_(options_.hosts_file, options_.dry_run, log),
       apps_(options_.dry_run, log),
+      policies_(options_.policies_root, options_.policies_path, options_.data_dir / L"policies.json", options_.dry_run, log),
+      browsers_(options_.dry_run || !options_.guard_browsers, log),
       wake_(CreateEventW(nullptr, FALSE, FALSE, nullptr)) {}
 
 Host::~Host() { finish(); }
@@ -166,6 +168,23 @@ void Host::step() {
     } else {
         apps_.sweep([&](const core::AppIdentity& app) { return engine_.decide(app, t); }, plan.active_rules,
                     std::chrono::system_clock::now());
+    }
+
+    // 5. Browsers, while a lock that blocks websites is in force: private windows and DNS-over-HTTPS
+    // off, and every open browser must have the extension connected.
+    web_lock_ = std::ranges::any_of(plan.active_rules, [&](const std::string& id) {
+        const core::Rule* rule = engine_.find_rule(id);
+        return rule && rule->strength == core::Strength::Lock && std::ranges::any_of(rule->block, core::is_web_target);
+    });
+    if (auto set = policies_.set(web_lock_); !set) {
+        warn_once(last_policy_error_, "can't set browser policies: " + set.error());
+    } else {
+        last_policy_error_.clear();
+    }
+    if (web_lock_) {
+        browsers_.enforce(std::chrono::steady_clock::now());
+    } else {
+        browsers_.relax();
     }
 }
 

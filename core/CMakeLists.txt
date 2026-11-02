@@ -8,6 +8,7 @@ configure_file(
 
 add_library(sirenproof_core STATIC
     src/app.cpp
+    src/browser.cpp
     src/clock.cpp
     src/crypto.cpp
     src/domain.cpp

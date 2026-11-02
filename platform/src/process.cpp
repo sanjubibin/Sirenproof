@@ -8,7 +8,10 @@
 #include <wincrypt.h>
 #include <wintrust.h>
 
+#include <algorithm>
 #include <format>
+
+#include "sirenproof/core/browser.hpp"
 
 namespace sirenproof::platform {
 
@@ -85,9 +88,35 @@ std::vector<ProcessEntry> list_processes() {
     PROCESSENTRY32W entry{};
     entry.dwSize = sizeof(entry);
     for (BOOL more = Process32FirstW(snapshot.get(), &entry); more; more = Process32NextW(snapshot.get(), &entry)) {
-        out.push_back({entry.th32ProcessID, entry.szExeFile});
+        out.push_back({entry.th32ProcessID, entry.th32ParentProcessID, entry.szExeFile});
     }
     return out;
+}
+
+std::optional<std::filesystem::path> browser_ancestor(std::uint32_t pid) {
+    const std::vector<ProcessEntry> processes = list_processes();
+    const auto find = [&](std::uint32_t id) -> const ProcessEntry* {
+        const auto it = std::ranges::find(processes, id, &ProcessEntry::pid);
+        return it == processes.end() ? nullptr : &*it;
+    };
+
+    const ProcessEntry* child = find(pid);
+    for (int level = 0; child && level < 4; ++level) {
+        const ProcessEntry* parent = find(child->parent);
+        if (!parent || parent->pid == child->pid) return std::nullopt;
+        const auto child_details = inspect_process(child->pid);
+        const auto parent_details = inspect_process(parent->pid);
+        if (!child_details || !parent_details || parent_details->started > child_details->started) return std::nullopt;
+
+        const std::string name = narrow(parent->exe_name);
+        if (core::browser_for_exe(name)) return std::filesystem::path(widen(parent_details->identity.path));
+        if (CompareStringOrdinal(parent->exe_name.c_str(), -1, L"cmd.exe", -1, TRUE) != CSTR_EQUAL &&
+            CompareStringOrdinal(parent->exe_name.c_str(), -1, L"conhost.exe", -1, TRUE) != CSTR_EQUAL) {
+            return std::nullopt;
+        }
+        child = parent;
+    }
+    return std::nullopt;
 }
 
 std::optional<ProcessDetails> inspect_process(std::uint32_t pid) {

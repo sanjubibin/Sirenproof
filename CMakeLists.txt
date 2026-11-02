@@ -23,6 +23,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 add_subdirectory(core)
 add_subdirectory(platform)
 add_subdirectory(service)
+add_subdirectory(host)
 add_subdirectory(cli)
 
 if(SIRENPROOF_BUILD_TESTS)
