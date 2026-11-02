@@ -34,9 +34,12 @@ Code that changes the system (hosts file, browser policies, services, closing pr
 out of your own PC if it has a bug:
 
 - **Test real enforcement in a virtual machine,** not on your daily PC. On Windows Home, which has no
-  Hyper-V or Windows Sandbox, use VirtualBox.
-- **Debug builds will run in dry-run mode by default,** logging what they would block and changing
-  nothing (from M2).
+  Hyper-V or Windows Sandbox, use VirtualBox. [docs/TESTING.md](docs/TESTING.md) has the steps.
+- **Use console mode on your own PC.** `sirenproof-service console` writes to a stand-in hosts file,
+  and debug builds only log what they would do unless you pass `--enforce`. Debug builds also cap lock
+  sessions at 2 minutes.
+- **If something goes wrong,** `tools\dev-reset.ps1` (administrator PowerShell) removes the service and
+  Sirenproof's hosts entries.
 
 ## Code style
 

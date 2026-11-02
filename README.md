@@ -23,9 +23,12 @@ lecturing you.
 
 - **M0 (foundation):** done. Build, tests and CI are in place.
 - **M1 (rule engine):** done. It covers rules for sites, pages and apps; schedules; Nudge, Block and Lock;
-  loosen delays; unlock methods; breaks; and a clock that resists tampering. The `sirenproof` command line
-  can check rules and show what *would* be blocked. It makes no changes to your PC.
-- **M2 (Windows service and enforcement):** next.
+  loosen delays; unlock methods; breaks; and a clock that resists tampering.
+- **M2 (Windows service and enforcement):** built and tested on a development PC. It covers the
+  service, the secure pipe, the signed state, hosts-file blocking with tamper repair, and closing
+  blocked programs; the `sirenproof` command line drives it. The acceptance test in a virtual machine
+  ([docs/TESTING.md](docs/TESTING.md)) is still to run.
+- **M3 (browser extension):** next.
 
 See the [plan](docs/PLAN.md#8-milestones) for the full roadmap.
 
@@ -68,23 +71,28 @@ Sirenproof is C++23, built with the [MSYS2](https://www.msys2.org/) UCRT64 toolc
 Use `release` instead of `debug` for an optimised build. If MSYS2 is installed somewhere else, copy
 `CMakePresets.json` to `CMakeUserPresets.json` (git-ignored) and change the paths.
 
-## Trying the rule engine
+## Trying it
 
-The command line evaluates a rules file and reports what would happen. It changes nothing on your PC.
-[examples/state.example.json](examples/state.example.json) has three rules:
+**Without the service.** The command line can evaluate a rules file and report what would happen,
+without changing anything on your PC. [examples/state.example.json](examples/state.example.json) has
+three rules:
 
 - Social sites and the YouTube feed are blocked during work hours.
 - Games get a nudge on school nights.
 - A locked exam-revision session that still allows YouTube videos and search.
 
 ```bash
-build/debug/cli/sirenproof.exe validate examples/state.example.json
-build/debug/cli/sirenproof.exe plan --state examples/state.example.json --at 2026-11-02T10:00:00Z
-build/debug/cli/sirenproof.exe check https://www.youtube.com/shorts/abc --state examples/state.example.json
-build/debug/cli/sirenproof.exe check steam.exe --state examples/state.example.json --at 2026-11-02T17:30:00Z
+build/debug/bin/sirenproof.exe plan --state examples/state.example.json --at 2026-11-02T10:00:00Z
+build/debug/bin/sirenproof.exe check https://www.youtube.com/shorts/abc --state examples/state.example.json
 ```
 
 Times given with `--at` are UTC. Output is shown in your local time.
+
+**With the service, safely.** `sirenproof-service.exe console` runs the service in a terminal window. It
+writes to a stand-in hosts file, and in debug builds it only logs what it would do. Then use
+`sirenproof status`, `block`, `check`, `remove`, `break` and `unlock` from another terminal.
+[docs/TESTING.md](docs/TESTING.md) has the details, and the virtual-machine test for the real
+thing.
 
 ### Rule targets
 
@@ -105,13 +113,16 @@ can never be targeted.
 ## Repository layout
 
 ```
-core/      Pure C++ logic (rules, matching, schedules, locks, trusted clock, state file).
+core/      Pure C++ logic (rules, matching, schedules, locks, trusted clock, state file, hosts editing).
            No Windows headers; fully unit-tested.
-cli/       sirenproof.exe, the command line
-tests/     Catch2 unit tests
+platform/  The Windows layer: files, signed state store, hosts file, pipe, processes, clock
+service/   sirenproof-service.exe: the background service
+cli/       sirenproof.exe: the command line
+tests/     Unit tests (core) and integration tests (platform)
+tools/     dev-reset.ps1: undo everything Sirenproof changed, for developers
 examples/  An example rules file
 cmake/     Warning and hardening flags
-docs/      Research and plan
+docs/      Research, plan and testing guide
 ```
 
 The service, command line, tray app, browser extension and installer arrive in later milestones (see

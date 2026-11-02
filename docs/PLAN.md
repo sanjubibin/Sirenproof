@@ -2,7 +2,9 @@
 
 > Tie yourself to the mast.
 
-**Status:** agreed 1 November 2026. M0 (foundation) and M1 (rule engine) are done. Evidence and sources:
+**Status:** agreed 1 November 2026. M0 (foundation) and M1 (rule engine) are done. M2 (service and
+enforcement) is built; its virtual-machine acceptance test ([TESTING.md](TESTING.md)) is still to run.
+Evidence and sources:
 [RESEARCH.md](RESEARCH.md).
 References like [U5], [C2] or [T13] point to that document.
 
@@ -237,7 +239,7 @@ flowchart LR
   svc --> state
   svc --> hosts["hosts file section"]
   svc --> pol["browser policies"]
-  svc --> proc["process watcher<br/>ETW + 1 s sweep"]
+  svc --> proc["process watcher<br/>1 s sweep"]
   svc -. "v1.x" .-> wfp["WFP network filters"]
 ```
 
@@ -249,7 +251,7 @@ applies it. Everything else is a view or a messenger. Killing the tray app chang
 | Component | Language | Job |
 |---|---|---|
 | `core` (static library) | C++20, no Windows headers | Rule model and JSON, matching (domains, pages, apps), schedules, the Nudge/Block/Lock state machine, change rules, trusted clock logic, the pipe protocol. Pure logic, fully unit-tested. |
-| `platform` (static library) | C++20 + Win32 | Hosts-file section, process watcher (ETW + Toolhelp sweep), process identity (path, signer, original filename, package), closing and suspending processes, browser policies in the registry, secure pipe server and client, service plumbing, monotonic clock. |
+| `platform` (static library) | C++23 + Win32 | Hosts-file section, process watcher (1-second sweep), process identity (path, signer, original filename, package), closing and suspending processes, browser policies in the registry, secure pipe server and client, service plumbing, monotonic clock. |
 | `sirenproof-service.exe` | C++ | Runs as LocalSystem and starts automatically, with restart-on-failure. Runs the enforcers and serves the pipe. |
 | `sirenproof.exe` | C++ | Command line: `status`, `rules`, `block`, `lock`, `unlock`, `break`, `check <url\|exe>`. Lets us build and test everything before there's a GUI. |
 | `sirenproof-tray.exe` | C++ + Win32 / Direct2D | Always-on and tiny. Tray icon and menu, notifications, the Nudge pause overlay for apps. Starts the main window when asked. |
@@ -265,7 +267,7 @@ applies it. Everything else is a view or a messenger. Killing the tray app chang
 | **Hosts file** (one section, between `# BEGIN Sirenproof` and `# END Sirenproof` markers) | Whole domains, in every app | Single pages. Resolvers that bypass the OS (handled by the policies row) | M2 |
 | **Browser extension** | Single pages, YouTube-style in-page navigation, the Nudge pause page | Browsers without it (handled by heartbeat and app rules) | M3 |
 | **Browser policies** (Chrome/Edge registry) | Turn off DNS-over-HTTPS; turn off Incognito/InPrivate during a lock; stop the extension being removed (needs a store listing) [T17]–[T19] | Unmanaged-PC quirks, to verify in M3 [T21] | M3 |
-| **Process watcher** | Apps and games, 1–3 s after launch [T24] | Blocking before launch (would need a kernel driver; we won't) | M2 |
+| **Process watcher** | Apps and games, within about a second of launch. A sweep every second, and only while a program rule is active, so it costs nothing otherwise. (ETW was the first idea, but its events arrive 1–3 s late [T24] and it needs admin, so it's kept as a later optimisation.) | Blocking before launch (would need a kernel driver; we won't) | M2 |
 | **WFP filters** | Per-app network access; DNS-over-TLS, QUIC, known DNS-over-HTTPS endpoints | — | v1.x |
 
 ### 4.3 Data
@@ -280,7 +282,8 @@ applies it. Everything else is a view or a messenger. Killing the tray app chang
 ### 4.4 Pipe protocol
 
 - **Pipe:** `\\.\pipe\Sirenproof.v1`.
-- **Framing:** a 4-byte length followed by UTF-8 JSON. Messages are capped at 64 KiB.
+- **Framing:** a message-mode pipe, so each request and each reply is exactly one pipe message of UTF-8
+  JSON. Messages are capped at 64 KiB.
 - **Requests:** `{"v":1,"id":7,"op":"lock.start","args":{…}}`
 - **Responses:** `{"id":7,"ok":false,"error":{"code":"loosen_delayed","until":"…"}}`
 - **Each kind of client gets an allow-list of operations.**
@@ -330,8 +333,18 @@ A service running as SYSTEM with a pipe is a classic privilege-escalation target
   - It never runs a program, never writes an IP address other than `0.0.0.0` / `::` into hosts, never
     redirects a domain somewhere else, and never touches protected processes.
   - Even a fully compromised client can only make your PC *more* blocked.
-- **Files.** The data folder is created by the installer with explicit permissions. Writes refuse to
-  follow symlinks or junctions in user-writable places.
+- **Files.** The data folder gets explicit permissions (SYSTEM and Administrators only).
+  - Anyone can create folders under ProgramData. So an existing data folder is refused if it's a
+    junction or link, or if an ordinary user owns it.
+  - Every write goes through a temporary file in that folder, then an atomic swap.
+- **Where it runs from.** `install` refuses unless the exe is in a folder only administrators can
+  change, such as Program Files. A SYSTEM service anyone could replace would hand over the PC.
+- **No DLL planting.** The service and CLI are linked statically, so a SYSTEM process never loads the
+  C++ runtime from some folder on the `PATH`.
+- **The pipe.**
+  - Ordinary users may read and write messages, but never create pipe instances.
+  - Clients connect with identification-only rights, so the service can't act as them.
+  - The CLI only believes a service that runs from its own folder.
 - **No network code** in the service or the relay. The extension makes no remote calls and loads no remote
   code. Its permissions are listed and explained in the README.
 - **Build hardening.**
@@ -387,7 +400,7 @@ Each milestone ends with something that runs, and a clear "done when".
 |---|---|---|---|
 | **M0** | Foundation | Repo skeleton, CMake presets, hardening flags, `core` with first tests, CI, LICENSE, README, CONTRIBUTING, SECURITY.md. | `ctest` passes locally and in GitHub Actions. |
 | **M1** | Core engine (no system changes) | Rule model and JSON; domain, page and app matching; schedules; Nudge/Block/Lock state machine; tighten-now / loosen-later rules; trusted clock; unlock methods. CLI `check` and `plan` commands print what *would* be blocked. | Unit tests cover loosen delays, lock expiry, and simulated clock jumps and reboots. |
-| **M2** | Service and enforcement | Service install and run; secure pipe; state with integrity check; hosts section with watcher; process watcher, app identity and close-with-warning; clean uninstall; CLI talks to the service. | In a VM, a 25-minute lock on `youtube.com` and Steam survives a hosts edit, killing the service, a clock change and a reboot. Uninstalling when unlocked leaves nothing behind. |
+| **M2** | Service and enforcement | Service install and run; secure pipe; state with integrity check; hosts section with watcher; process watcher, app identity and close-with-warning; clean uninstall; CLI talks to the service; `tools/dev-reset.ps1`. *Built and integration-tested; VM acceptance test pending.* | In a VM, a 25-minute lock on `youtube.com` and Steam survives a hosts edit, killing the service, a clock change and a reboot. Uninstalling when unlocked leaves nothing behind. |
 | **M3** | Browsers | Extension and relay; page rules; YouTube in-page navigation; block and pause pages; heartbeat with grace period; DNS-over-HTTPS and private windows turned off by policy during a lock. | Shorts and the feed are blocked while `/watch` works. Incognito is unavailable during a lock. A disabled extension leads to warning, grace period, then closed windows with an explanation. |
 | **M4** | Interface | Style guide and clickable prototype approved first. Win32 tray and Direct2D pause overlay. Qt Quick main window: mast ring, command palette, schedule painter, rule tester, ready-made lists, lock setup with hold-to-commit and preview, unlock challenges, pending changes, breaks. | Two or three non-technical people set up a scheduled block without the CLI or any help. The §3.7 budgets are measured and met. |
 | **M5** | v1.0 release | Installer (refuses uninstall during a lock), signing, Chrome Web Store and Edge Add-ons listings, Defender testing, threat-model review, docs, checksums. | Signed installer on GitHub Releases. Install → use → uninstall passes on a fresh VM. |
