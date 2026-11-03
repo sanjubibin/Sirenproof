@@ -139,6 +139,12 @@ ColumnLayout {
             text: root.complete ? "All of it matches. Press Unlock, or Enter."
                 : root.mistake ? `Character ${root.correct + 1} doesn't match. Fix it to go on.`
                 : `${root.correct} of ${root.target.length} characters`
+            // A screen reader can read the line, and hears a mismatch or the end as they happen (not
+            // every character typed).
+            Accessible.role: Accessible.StaticText
+            Accessible.name: text
+            readonly property string news: root.complete || root.mistake ? text : ""
+            onNewsChanged: if (news) Accessible.announce(news)
         }
     }
 

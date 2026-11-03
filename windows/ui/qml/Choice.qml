@@ -10,6 +10,7 @@ Button {
     property bool chosen
 
     Layout.fillWidth: true
+    Layout.fillHeight: true  // as tall as the tallest in its row, so a row of tiles lines up
     padding: 14
     hoverEnabled: true
     Accessible.checkable: true
@@ -26,6 +27,7 @@ Button {
             visible: text.length > 0
             wrapMode: Text.Wrap
         }
+        Item { Layout.fillHeight: true }  // text at the top of a taller tile
     }
     background: Rectangle {
         radius: 14

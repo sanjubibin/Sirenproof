@@ -168,3 +168,12 @@ From the M5 threat-model review ([docs/THREAT-MODEL.md](docs/THREAT-MODEL.md)):
   because MSYS2's Qt looks for its QML modules where MSYS2 keeps them rather than next to the program.
   `tools\package.ps1` now writes a `qt.conf` into the stage, and checks the staged window starts on its
   own, so this can't come back unnoticed. Found by the test tracker's check 3.2.
+- The main window makes each screen the first time it's shown, instead of all of them at start, as the
+  plan asks (§3.7): its start went from about 385 ms to 245 ms measured side by side, back under the
+  400 ms budget after the New rule card and the unlock challenges had added to it.
+- Option tiles in a row (Start a lock's lists, the unlock methods) are all as tall as the tallest, so a
+  row no longer looks ragged when one description wraps.
+- Screen readers can read the unlock challenges' progress and mistake lines ("4 of 20 characters",
+  "Character 5 doesn't match", "That's not it. 4 tries left…"), and hear a mistake, a wrong code or
+  the wait as it happens. Before, those lines were only on screen.
+- A 1-minute unlock wait says "1 minute", not "1 minutes".

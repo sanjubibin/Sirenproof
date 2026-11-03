@@ -93,7 +93,7 @@ Windows 11). A fast laptop: slower PCs are worth measuring too, for example in t
 
 | Surface | Budget | Measured |
 |---|---|---|
-| Main window | Start ≤ 400 ms | 236 ms (median of 4 warm starts). The first start after a fresh build took 1.46 s, with Windows Defender scanning the new program; a cold start after a reboot isn't measured yet |
+| Main window | Start ≤ 400 ms | 236 ms (median of 4 warm starts). The first start after a fresh build took 1.46 s, with Windows Defender scanning the new program; a cold start after a reboot isn't measured yet. Later the same day the new screens had pushed it to 420 ms; with each screen made when it's first shown it was 207 ms |
 | Main window | Draws only when something changes | 0.7 frames a second while idle (Direct3D 11) |
 | Main window | 60 fps while animating | 60 fps; longest frame 19.8 ms |
 | Tray | ≤ 3 MB | 2.08 MB private (10.4 MB working set, mostly shared Windows code) |

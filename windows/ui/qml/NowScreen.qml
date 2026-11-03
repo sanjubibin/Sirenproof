@@ -119,7 +119,7 @@ Flickable {
                     wrapMode: Text.Wrap
                     color: Theme.muted
                     text: !root.lock ? "" : {
-                        "wait": `Ask now, and the lock ends ${root.waitMinutes} minutes from now unless you change your mind.`,
+                        "wait": `Ask now, and the lock ends ${root.waitMinutes} ${root.waitMinutes === 1 ? "minute" : "minutes"} from now unless you change your mind.`,
                         "type": "Copy a long random text by hand. It takes a few minutes, which is the point.",
                         "friend": "Enter the code you gave to someone you trust when the lock began.",
                         "none": `This lock has no early exit. It ends at ${Theme.clock(root.until)}.`

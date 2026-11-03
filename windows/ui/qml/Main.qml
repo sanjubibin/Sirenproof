@@ -36,6 +36,21 @@ ApplicationWindow {
         toastTimer.restart()
     }
 
+    // A screen is made the first time it's shown and kept after that: the window starts with only the
+    // one it opens on (plan §3.7), and a screen keeps its state when you come back to it.
+    component LazyScreen: Loader {
+        id: page
+        required property string name
+        active: false
+        Component.onCompleted: if (window.screen === page.name) page.active = true
+        Connections {
+            target: window
+            function onScreenChanged() {
+                if (window.screen === page.name) page.active = true
+            }
+        }
+    }
+
     // Does what the command palette understood.
     function runCommand(c) {
         switch (c.kind) {
@@ -47,15 +62,16 @@ ApplicationWindow {
             break
         }
         case "lock":
-            window.screen = "lock"
-            lockScreen.prefill(c.lists, c.targets, c.minutes, c.unlock)
+            window.screen = "lock"  // makes the screen, the first time
+            lockPage.item.prefill(c.lists, c.targets, c.minutes, c.unlock)
             break
         case "break":
             report(Service.startBreak(), "Break started. Blocks that allow breaks are off until it ends.")
             break
         case "check":
             window.screen = "rules"
-            rulesScreen.test(c.subject)
+            // Once a screen made just now is laid out, so the tester can be scrolled to.
+            Qt.callLater(() => rulesPage.item.test(c.subject))
             break
         default:
             window.screen = c.screen
@@ -258,26 +274,38 @@ ApplicationWindow {
                 Layout.fillHeight: true
                 currentIndex: ["now", "rules", "lock", "lockdown"].indexOf(window.screen)
 
-                NowScreen {
-                    now: window.now
-                    onStartLock: window.screen = "lock"
-                    onLockDown: window.screen = "lockdown"
-                    onMessage: text => window.say(text)
-                    onReport: (result, success) => window.report(result, success)
+                LazyScreen {
+                    name: "now"
+                    sourceComponent: NowScreen {
+                        now: window.now
+                        onStartLock: window.screen = "lock"
+                        onLockDown: window.screen = "lockdown"
+                        onMessage: text => window.say(text)
+                        onReport: (result, success) => window.report(result, success)
+                    }
                 }
-                RulesScreen {
-                    id: rulesScreen
-                    now: window.now
-                    onReport: (result, success) => window.report(result, success)
+                LazyScreen {
+                    id: rulesPage
+                    name: "rules"
+                    sourceComponent: RulesScreen {
+                        now: window.now
+                        onReport: (result, success) => window.report(result, success)
+                    }
                 }
-                LockScreen {
-                    id: lockScreen
-                    now: window.now
-                    onLocked: window.screen = "now"
-                    onReport: (result, success) => window.report(result, success)
+                LazyScreen {
+                    id: lockPage
+                    name: "lock"
+                    sourceComponent: LockScreen {
+                        now: window.now
+                        onLocked: window.screen = "now"
+                        onReport: (result, success) => window.report(result, success)
+                    }
                 }
-                LockdownScreen {
-                    onDone: window.screen = "now"
+                LazyScreen {
+                    name: "lockdown"
+                    sourceComponent: LockdownScreen {
+                        onDone: window.screen = "now"
+                    }
                 }
             }
         }

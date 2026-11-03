@@ -96,5 +96,10 @@ ColumnLayout {
               ? `That's not it. ${root.triesLeft} ${root.triesLeft === 1 ? "try" : "tries"} left, then a ${root.lock.next_wait_minutes}-minute wait.`
               : root.problem ? root.problem
               : `${root.entered.length} of ${root.codeLength} characters. Capitals and dashes don't matter.`
+        // A screen reader can read the line, and hears a wrong code or the wait as they happen.
+        Accessible.role: Accessible.StaticText
+        Accessible.name: text
+        readonly property string news: root.waiting || root.problem ? text : ""
+        onNewsChanged: if (news) Accessible.announce(news)
     }
 }
