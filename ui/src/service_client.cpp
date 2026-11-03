@@ -1,5 +1,6 @@
 #include "service_client.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <optional>
 #include <variant>
@@ -118,18 +119,51 @@ QVariantList ServiceClient::readyLists() const {
     return lists;
 }
 
-QVariantMap ServiceClient::addRule(const QVariantList& targets, int minutes, const QString& strength) {
+std::optional<core::Rule> ServiceClient::new_rule(const QVariantList& targets, const QString& strength, QVariantMap& problem) {
     core::Rule rule;
     for (const QVariant& value : targets) {
-        auto target = core::parse_target(value.toString().toStdString());
-        if (!target) return error(value.toString().toStdString() + " isn't a site, page or app");
-        rule.block.push_back(*std::move(target));
+        auto target = core::parse_target(value.toString().trimmed().toStdString());
+        if (!target) {
+            problem = error(value.toString().toStdString() + " isn't a site, page or app");
+            return std::nullopt;
+        }
+        if (std::ranges::find(rule.block, *target) == rule.block.end()) rule.block.push_back(*std::move(target));
     }
-    if (rule.block.empty()) return error("there's nothing to block");
+    if (rule.block.empty()) {
+        problem = error("there's nothing to block");
+        return std::nullopt;
+    }
     rule.name = core::to_string(rule.block.front());
     if (rule.block.size() > 1) rule.name += " and " + std::to_string(rule.block.size() - 1) + " more";
     rule.strength = strength == "nudge" ? core::Strength::Nudge : core::Strength::Block;
     if (rule.strength == core::Strength::Nudge) rule.loosen_delay = core::Minutes{2};  // as the command line does
+    return rule;
+}
+
+QVariantMap ServiceClient::createRule(const QVariantList& targets, const QVariant& when, const QString& strength,
+                                      const QString& name) {
+    QVariantMap problem;
+    auto rule = new_rule(targets, strength, problem);
+    if (!rule) return problem;
+    if (!name.trimmed().isEmpty()) rule->name = name.trimmed().toStdString();
+    try {
+        rule->when = core::when_from_json(from_variant(when), "when");
+    } catch (const core::JsonError& e) {
+        return error(e.what());
+    }
+    if (std::holds_alternative<core::Span>(rule->when)) return error("a new rule needs a weekly schedule or always");
+    Json rule_json = core::rule_to_json(*rule);
+    rule_json.erase("id");  // the service picks one
+    const QVariantMap result = call("rules.add", Json{{"rule", rule_json}});
+    refresh();
+    return result;
+}
+
+QVariantMap ServiceClient::addRule(const QVariantList& targets, int minutes, const QString& strength) {
+    QVariantMap problem;
+    auto made = new_rule(targets, strength, problem);
+    if (!made) return problem;
+    core::Rule& rule = *made;
 
     // The service sets the real start and end from its trusted clock; these only have to be valid.
     const auto now = std::chrono::floor<core::Seconds>(std::chrono::system_clock::now());
@@ -145,6 +179,15 @@ QVariantMap ServiceClient::addRule(const QVariantList& targets, int minutes, con
 
 QVariantMap ServiceClient::addTarget(const QString& rule, const QString& target) {
     return update_rule(rule, [&](Json& r) { r["block"].push_back(target.trimmed().toStdString()); });
+}
+
+QVariantMap ServiceClient::addTargets(const QString& rule, const QStringList& targets) {
+    return update_rule(rule, [&](Json& r) {
+        for (const QString& target : targets) {
+            const std::string t = target.trimmed().toStdString();
+            if (std::ranges::find(r["block"], Json(t)) == r["block"].end()) r["block"].push_back(t);
+        }
+    });
 }
 
 QVariantMap ServiceClient::removeTarget(const QString& rule, const QString& target) {

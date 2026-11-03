@@ -11,10 +11,16 @@ using namespace sirenproof::core;
 using Strings = std::vector<std::string>;
 
 TEST_CASE("Ready-made lists and well-known names hold valid targets", "[command]") {
-    REQUIRE(ready_lists().size() == 3);
+    REQUIRE(ready_lists().size() == 4);
+    CHECK(find_ready_list("news"));
     for (const ReadyList& list : ready_lists()) {
         CHECK(find_ready_list(list.id) == &list);
-        for (const std::string_view t : list.targets) CHECK(parse_target(t));
+        for (const std::string_view t : list.targets) {
+            // Written back the same way, so the Rules screen can tell which lists a rule already holds.
+            const auto target = parse_target(t);
+            REQUIRE(target);
+            CHECK(to_string(*target) == t);
+        }
     }
     CHECK_FALSE(find_ready_list("nothing"));
     for (const std::string_view name : {"youtube", "reddit", "x", "twitter", "steam", "discord", "twitch"}) {

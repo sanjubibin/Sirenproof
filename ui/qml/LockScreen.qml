@@ -65,27 +65,6 @@ Flickable {
         }
     }
 
-    component Choice: Button {
-        id: choice
-        property string detail
-        property bool chosen
-        Layout.fillWidth: true
-        padding: 14
-        hoverEnabled: true
-        Accessible.checked: chosen
-        contentItem: ColumnLayout {
-            spacing: 2
-            Text { text: choice.text; color: Theme.text; font.weight: Font.DemiBold }
-            Text { text: choice.detail; color: Theme.muted; font.pixelSize: 13; visible: text.length > 0 }
-        }
-        background: Rectangle {
-            radius: 14
-            color: choice.chosen ? Theme.accentSoft : "transparent"
-            border.color: choice.chosen || choice.visualFocus ? Theme.accent : Theme.edge
-            border.width: choice.visualFocus ? 2 : 1
-        }
-    }
-
     GridLayout {
         id: layout
         width: root.width
@@ -104,9 +83,11 @@ Flickable {
                 Layout.fillWidth: true
                 spacing: 10
                 Text { text: "WHAT TO LOCK"; color: Theme.muted; font.pixelSize: 12; font.weight: Font.DemiBold; font.letterSpacing: 1.6 }
-                RowLayout {
+                GridLayout {
                     Layout.fillWidth: true
-                    spacing: 10
+                    columns: width >= 560 ? root.setDefs.length : 2
+                    columnSpacing: 10
+                    rowSpacing: 10
                     Repeater {
                         model: root.setDefs
                         delegate: Choice {
@@ -128,28 +109,11 @@ Flickable {
                     spacing: 8
                     Repeater {
                         model: root.extra
-                        delegate: Rectangle {
-                            id: extraChip
+                        delegate: TargetChip {
                             required property string modelData
-                            width: extraRow.implicitWidth + 18
-                            height: 34
-                            radius: 17
-                            color: Theme.accentSoft
-                            border.color: Theme.edgeStrong
-                            RowLayout {
-                                id: extraRow
-                                anchors.verticalCenter: parent.verticalCenter
-                                x: 12
-                                spacing: 2
-                                Text { text: extraChip.modelData; color: Theme.text; font.pixelSize: 14 }
-                                Button {
-                                    implicitWidth: 28; implicitHeight: 28
-                                    Accessible.name: `Leave out ${extraChip.modelData}`
-                                    onClicked: root.extra = root.extra.filter(t => t !== extraChip.modelData)
-                                    contentItem: Text { text: "×"; color: Theme.muted; font.pixelSize: 16; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                                    background: Rectangle { radius: 14; color: parent.hovered ? Qt.rgba(1, 1, 1, 0.06) : "transparent" }
-                                }
-                            }
+                            target: modelData
+                            removeName: `Leave out ${modelData}`
+                            onRemoved: root.extra = root.extra.filter(t => t !== modelData)
                         }
                     }
                 }

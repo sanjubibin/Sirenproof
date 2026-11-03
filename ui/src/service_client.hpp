@@ -2,13 +2,16 @@
 
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QTimer>
 #include <QVariant>
 
 #include <functional>
+#include <optional>
 #include <string>
 
 #include "sirenproof/core/json_codec.hpp"
+#include "sirenproof/core/rule.hpp"
 
 namespace sirenproof::ui {
 
@@ -41,7 +44,13 @@ public:
     Q_INVOKABLE QVariantMap startLock(const QVariantList& targets, int minutes, const QString& unlock, const QString& goal);
     // A new Block or Nudge rule; `minutes` 0 means until you remove it.
     Q_INVOKABLE QVariantMap addRule(const QVariantList& targets, int minutes, const QString& strength);
+    // A new Block or Nudge rule on a schedule: `when` is "always" or a weekly schedule from paintHours.
+    // An empty name is made up from the targets.
+    Q_INVOKABLE QVariantMap createRule(const QVariantList& targets, const QVariant& when, const QString& strength,
+                                       const QString& name);
     Q_INVOKABLE QVariantMap addTarget(const QString& rule, const QString& target);
+    // Adds the ones the rule doesn't block yet, in one change (a ready-made list, say).
+    Q_INVOKABLE QVariantMap addTargets(const QString& rule, const QStringList& targets);
     Q_INVOKABLE QVariantMap removeTarget(const QString& rule, const QString& target);
     Q_INVOKABLE QVariantMap setStrength(const QString& rule, const QString& strength);
     Q_INVOKABLE QVariantMap setWhen(const QString& rule, const QVariant& when);
@@ -71,6 +80,8 @@ signals:
 
 private:
     QVariantMap call(const std::string& op, const core::Json& args);
+    // A Block or Nudge rule on `targets`, named after them; nullopt with `problem` set if one isn't valid.
+    static std::optional<core::Rule> new_rule(const QVariantList& targets, const QString& strength, QVariantMap& problem);
     // Fetches the rule as last listed, lets `edit` change it, and sends it back as rules.update.
     QVariantMap update_rule(const QString& rule, const std::function<void(core::Json&)>& edit);
 

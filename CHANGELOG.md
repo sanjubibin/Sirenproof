@@ -19,6 +19,11 @@ milestone, newest first. What comes next is in the [roadmap](ROADMAP.md).
       type or friend code; pasting is blocked).
     - **Rules:** every rule; add or remove sites, pages and apps; change the strength; a live rule
       tester; remove a rule.
+    - **New rule:** a card on the Rules screen to set up a Nudge or Block without the command line: pick
+      ready-made lists or type sites, pages and apps, then choose Always or paint the hours (Mon–Fri
+      09:00–17:00 to start with). Painting there costs nothing until you press Create.
+    - **Ready-made lists in the Rules screen:** each rule offers Video, Social, Games and News as buttons
+      that add whatever the rule doesn't block yet, in one change; a list it already holds is ticked.
     - **Schedule painter:** the week as 7 × 24 hours. Drag to paint hours on, or start on a lit hour to
       clear them; arrow keys and Space work too. Hours you don't touch keep their exact minutes (09:30
       stays 09:30), and the current hour is marked. Adding hours applies at once; clearing them waits
@@ -116,6 +121,8 @@ milestone, newest first. What comes next is in the [roadmap](ROADMAP.md).
 
 - The ready-made lists (Video, Social, Games) are defined once in the core, for the lock screen and the
   palette, and the command line and the palette read lengths ("1h30m") the same way.
+- A fourth ready-made list, **News** (Google News, Hacker News, CNN, Fox News, the New York Times), for
+  the lock screen, the Rules screen and the palette (`lock news 2h`).
 - Messages from the service show times on your PC's clock instead of in UTC.
 - A rule's schedule can be read and written on its own (`when_from_json`, `when_to_json`), and
   `WeeklySchedule::from_minutes` writes any set of minutes back as the fewest readable windows.

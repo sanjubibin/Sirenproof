@@ -89,6 +89,33 @@ build\debug\bin\sirenproof.exe block reddit.com --for 2m --lock --unlock wait:1 
 |---|---|---|---|---|
 | 1.22 | **Unlock early…** | The text and button say 1 minute, not 30 | ☐ | |
 
+## 2. Ready-made lists and New rule (M4)
+
+Console service and main window as in section 1. Go to **Rules**.
+
+| # | Try this | Expected | Result | Notes |
+|---|---|---|---|---|
+| 2.1 | With no rules yet | The list says to press **New rule**; no mention of the command line | ☐ | |
+| 2.2 | **New rule** | The card opens where a rule would show; the button greys out | ☐ | |
+| 2.3 | Pick **Social** and **News**, type `twitch.tv, app:notepad.exe` and press Enter | Two chips appear; Create says how many targets | ☐ | |
+| 2.4 | Remove a chip with × | It goes | ☐ | |
+| 2.5 | Look at **When** | "On a schedule" is chosen and the grid shows Mon–Fri 09:00–17:00 | ☐ | |
+| 2.6 | Paint Saturday 10:00–12:00 on, then clear Friday afternoon | The grid changes at once; nothing is sent yet (`sirenproof rules` shows no new rule) | ☐ | |
+| 2.7 | Clear every hour | A message says a schedule needs at least one hour; the grid keeps the last hour | ☐ | |
+| 2.8 | Choose **Nudge**, name it "Weekdays", **Create** | "Rule added"; the rule is selected, named Weekdays, NUDGE, with the painted hours | ☐ | |
+| 2.9 | `sirenproof rules` | The same rule, with a 2-minute loosen delay (Nudge) and the same windows | ☐ | |
+| 2.10 | **New rule → Always → Block**, one target, Create | A rule that says "Always" | ☐ | |
+| 2.11 | **New rule**, then **Cancel** | Back to the selected rule; the card is empty when opened again | ☐ | |
+| 2.12 | **New rule** with a bad target (`not a site`) | An error names it; nothing is created | ☐ | |
+| 2.13 | Select a rule: under **Blocks**, the list buttons | `+ Video`, `+ Social`, `+ Games`, `+ News`, with a tooltip saying what each blocks | ☐ | |
+| 2.14 | Press `+ Video` | Its three pages appear as chips at once; the button turns to `✓ Video` and greys out | ☐ | |
+| 2.15 | Remove one Video chip | The button is `+ Video` again (pressing it adds only the missing one) | ☐ | Removing loosens, so on a rule with a delay it waits first; it shows under **Waiting to apply** on Now |
+| 2.16 | During a lock (section 1), open the lock's rule and press `+ News` | Applied at once (it only tightens) | ☐ | |
+| 2.17 | **Start a lock** screen | Four lists (Video, Social, Games, News), two to a row in a narrow window; picking News adds its line to the preview | ☐ | |
+| 2.18 | Palette (Ctrl+K): `lock news 1h` | The Start a lock screen with News chosen | ☐ | |
+| 2.19 | Keyboard only: Tab through the New rule card | Every control is reachable and shows a focus ring | ☐ | |
+| 2.20 | Usability: someone who has never seen Sirenproof sets up "block Reddit on weekday evenings" from **Rules**, without help | Done within a few minutes | ☐ | This is the M4 usability test (ROADMAP); do it with two or three people and note where they hesitate |
+
 ## Problems found
 
 | # | Test | What happened | Fixed in |

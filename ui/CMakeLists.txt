@@ -20,16 +20,19 @@ qt_add_qml_module(sirenproof_ui
     VERSION 1.0
     QML_FILES
         qml/Card.qml
+        qml/Choice.qml
         qml/CommandPalette.qml
         qml/FriendCodeEntry.qml
         qml/LockdownScreen.qml
         qml/LockScreen.qml
         qml/Main.qml
         qml/MastRing.qml
+        qml/NewRuleCard.qml
         qml/NowScreen.qml
         qml/RulesScreen.qml
         qml/ScheduleGrid.qml
         qml/SirenButton.qml
+        qml/TargetChip.qml
         qml/Theme.qml
         qml/TypeChallenge.qml)
 

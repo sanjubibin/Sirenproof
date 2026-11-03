@@ -12,6 +12,7 @@ namespace {
 constexpr std::string_view kVideo[] = {"youtube.com/", "youtube.com/feed", "youtube.com/shorts"};
 constexpr std::string_view kSocial[] = {"reddit.com", "x.com", "instagram.com"};
 constexpr std::string_view kGames[] = {"app:steam.exe", "app:discord.exe"};
+constexpr std::string_view kNews[] = {"news.google.com", "news.ycombinator.com", "cnn.com", "foxnews.com", "nytimes.com"};
 
 constexpr ReadyList kLists[] = {
     {"video", "Video", "YouTube home, feed and Shorts", "Blocks YouTube's home page, feed and Shorts. Videos still play.",
@@ -19,6 +20,8 @@ constexpr ReadyList kLists[] = {
     {"social", "Social", "Reddit, X, Instagram", "Blocks reddit.com, x.com and instagram.com.", kSocial},
     {"games", "Games", "Steam, Discord", "Closes Steam and Discord. Anything already open gets 10 seconds to save.",
      kGames},
+    {"news", "News", "Google News, Hacker News, CNN, Fox, NYT",
+     "Blocks Google News, Hacker News, cnn.com, foxnews.com and nytimes.com.", kNews},
 };
 
 struct Name {

@@ -11,9 +11,17 @@ Flickable {
 
     required property real now
     property string selected: ""
+    property bool adding: false  // the New rule card in place of the selected rule
     readonly property var rules: Service.rules || []
-    readonly property var rule: rules.find(r => r.id === selected) || rules[0] || null
+    readonly property var rule: adding ? null : rules.find(r => r.id === selected) || rules[0] || null
     readonly property bool wide: width >= 820
+    readonly property var lists: Service.readyLists
+
+    // Opens the New rule card in place of the selected rule.
+    function newRule() {
+        adding = true
+        contentY = 0
+    }
 
     contentHeight: layout.implicitHeight
     clip: true
@@ -62,6 +70,14 @@ Flickable {
             Layout.fillWidth: !root.wide
             spacing: 12
 
+            SirenButton {
+                Layout.fillWidth: true
+                kind: root.adding ? "plain" : "primary"
+                text: "New rule"
+                enabled: !root.adding
+                onClicked: root.newRule()
+            }
+
             Repeater {
                 model: root.rules
                 delegate: Button {
@@ -72,7 +88,7 @@ Flickable {
                     padding: 14
                     hoverEnabled: true
                     Accessible.name: `${modelData.name || modelData.id}, ${modelData.strength}`
-                    onClicked: root.selected = modelData.id
+                    onClicked: { root.adding = false; root.selected = modelData.id }
                     contentItem: ColumnLayout {
                         spacing: 2
                         RowLayout {
@@ -104,11 +120,22 @@ Flickable {
 
             Text {
                 Layout.fillWidth: true
-                visible: root.rules.length === 0
-                text: "No rules yet. Start a lock, or add one from the command line:\nsirenproof block reddit.com --for 25m"
+                visible: root.rules.length === 0 && !root.adding
+                text: "No rules yet. Press New rule to block sites or apps on a schedule, or start a lock."
                 color: Theme.muted
                 wrapMode: Text.Wrap
             }
+        }
+
+        // ---- A new rule ----
+        NewRuleCard {
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignTop
+            visible: root.adding
+            now: root.now
+            onCreated: rule => { root.adding = false; root.selected = rule }
+            onCancelled: root.adding = false
+            onReport: (result, success) => root.report(result, success)
         }
 
         // ---- One rule ----
@@ -145,28 +172,49 @@ Flickable {
                     spacing: 8
                     Repeater {
                         model: root.rule ? root.rule.block : []
-                        delegate: Rectangle {
-                            id: chip
+                        delegate: TargetChip {
                             required property string modelData
-                            width: chipRow.implicitWidth + 18
-                            height: 34
-                            radius: 17
-                            color: Theme.accentSoft
-                            border.color: Theme.edgeStrong
-                            RowLayout {
-                                id: chipRow
-                                anchors.verticalCenter: parent.verticalCenter
-                                x: 12
-                                spacing: 2
-                                Text { text: chip.modelData; color: Theme.text; font.pixelSize: 14 }
-                                Button {
-                                    implicitWidth: 28; implicitHeight: 28
-                                    text: "×"
-                                    Accessible.name: `Remove ${chip.modelData}`
-                                    onClicked: root.report(Service.removeTarget(root.rule.id, chip.modelData), `Removed ${chip.modelData}.`)
-                                    contentItem: Text { text: "×"; color: Theme.muted; font.pixelSize: 16; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                                    background: Rectangle { radius: 14; color: parent.hovered ? Qt.rgba(1, 1, 1, 0.06) : "transparent" }
-                                }
+                            target: modelData
+                            // Removing loosens the rule, so the service may hold it back for the delay.
+                            onRemoved: root.report(Service.removeTarget(root.rule.id, modelData), `Removed ${modelData}.`)
+                        }
+                    }
+                }
+
+                // Ready-made lists: one click adds what the rule doesn't block yet. Adding only tightens,
+                // so it applies at once, even to a lock.
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 8
+                    Repeater {
+                        model: root.lists
+                        delegate: Button {
+                            id: listButton
+                            required property var modelData
+                            readonly property var missing: root.rule ? modelData.targets.filter(t => !root.rule.block.includes(t)) : []
+                            readonly property bool included: missing.length === 0
+                            implicitHeight: 34
+                            leftPadding: 14; rightPadding: 14
+                            hoverEnabled: true
+                            enabled: !included
+                            text: included ? `✓ ${modelData.label}` : `+ ${modelData.label}`
+                            Accessible.name: included ? `${modelData.label} list: all of it is blocked` : `Add the ${modelData.label} list: ${modelData.detail}`
+                            ToolTip.visible: hovered
+                            ToolTip.delay: 500
+                            ToolTip.text: modelData.effect
+                            onClicked: root.report(Service.addTargets(root.rule.id, missing),
+                                                   `Added the ${modelData.label} list. Tightening applies at once.`)
+                            contentItem: Text {
+                                text: listButton.text
+                                color: listButton.included ? Theme.muted : Theme.accent
+                                font.pixelSize: 14; font.weight: Font.DemiBold
+                                horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+                            }
+                            background: Rectangle {
+                                radius: 17
+                                color: listButton.hovered && listButton.enabled ? Theme.accentSoft : "transparent"
+                                border.color: listButton.visualFocus ? Theme.accent : listButton.included ? Theme.edge : Theme.edgeStrong
+                                border.width: listButton.visualFocus ? 2 : 1
                             }
                         }
                     }
