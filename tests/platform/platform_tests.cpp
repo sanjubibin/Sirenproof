@@ -139,21 +139,27 @@ TEST_CASE("An edited state never becomes the backup", "[platform][state][tamper]
     TempDir dir;
     StateStore store(dir.path);
     REQUIRE(store.load());
-    core::State good;
-    good.settings.breaks_per_day = 1;
-    REQUIRE(store.save(good));
-    REQUIRE(store.save(good));  // nothing changed; still one good file and no backup yet
+    core::State first;
+    first.settings.breaks_per_day = 1;
+    REQUIRE(store.save(first));
+    core::State second = first;
+    second.settings.breaks_per_day = 2;
+    REQUIRE(store.save(second));  // first becomes the backup
+    REQUIRE(read(dir.path / L"state.dat.bak").find("\"breaks_per_day\": 1") != std::string::npos);
 
     std::string text = read(dir.path / L"state.dat");
-    const std::size_t at = text.find("\"breaks_per_day\": 1");
+    const std::size_t at = text.find("\"breaks_per_day\": 2");
     REQUIRE(at != std::string::npos);
     text.replace(at, 19, "\"breaks_per_day\": 9");
     REQUIRE(write_file_atomic(dir.path / L"state.dat", text));  // edited by hand
 
-    core::State next = good;
-    next.settings.breaks_per_day = 2;
-    REQUIRE(store.save(next));  // the edited file must not be kept as the backup
-    CHECK(read(dir.path / L"state.dat.bak").find("\"breaks_per_day\": 9") == std::string::npos);
+    core::State third = second;
+    third.settings.breaks_per_day = 3;
+    REQUIRE(store.save(third));
+    // The edited file wasn't kept: the backup is still the first, genuine state.
+    const std::string backup = read(dir.path / L"state.dat.bak");
+    CHECK(backup.find("\"breaks_per_day\": 9") == std::string::npos);
+    CHECK(backup.find("\"breaks_per_day\": 1") != std::string::npos);
 }
 
 TEST_CASE("An edited state is never used; the backup is", "[platform][state][tamper]") {
@@ -343,13 +349,6 @@ TEST_CASE("A program renamed after Sirenproof is still closed", "[platform][apps
     TempDir dir;
     const fs::path renamed = dir.path / L"sirenproof-tray.exe";  // Sirenproof's name, but not its folder
     fs::copy_file(fs::path(widen(SIRENPROOF_SLEEPER_EXE)), renamed);
-    std::wstring command = L"\"" + renamed.native() + L"\"";
-    STARTUPINFOW startup{};
-    startup.cb = sizeof(startup);
-    PROCESS_INFORMATION info{};
-    REQUIRE(CreateProcessW(nullptr, command.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &startup, &info));
-    Handle process(info.hProcess);
-    Handle thread(info.hThread);
 
     Logger log = quiet_log();
     AppBlocker blocker(false, log);
@@ -361,9 +360,17 @@ TEST_CASE("A program renamed after Sirenproof is still closed", "[platform][apps
         }
         return v;
     };
-    const auto now = std::chrono::system_clock::now();
-    blocker.sweep(decide, {"games"}, now - std::chrono::seconds{30});
-    CHECK(blocker.sweep(decide, {"games"}, now) == 1);
+    // The block is on before the program starts, so it's closed at once, as in the test above.
+    blocker.sweep(decide, {"games"}, std::chrono::system_clock::now() - std::chrono::seconds{30});
+
+    std::wstring command = L"\"" + renamed.native() + L"\"";
+    STARTUPINFOW startup{};
+    startup.cb = sizeof(startup);
+    PROCESS_INFORMATION info{};
+    REQUIRE(CreateProcessW(nullptr, command.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &startup, &info));
+    Handle process(info.hProcess);
+    Handle thread(info.hThread);
+    CHECK(blocker.sweep(decide, {"games"}, std::chrono::system_clock::now()) == 1);
     CHECK(WaitForSingleObject(process.get(), 5000) == WAIT_OBJECT_0);
     TerminateProcess(process.get(), 0);  // if it wasn't closed, so the folder can go
     WaitForSingleObject(process.get(), 2000);
