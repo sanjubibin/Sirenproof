@@ -14,8 +14,20 @@ TrustedClock::TrustedClock(const ClockCheckpoint& saved, const ClockReading& now
 
 void TrustedClock::update(const ClockReading& reading, const TimeChangeArbiter& arbiter) {
     const bool same_boot = reading.boot_id == boot_id_ && reading.monotonic >= monotonic_;
-    const Millis elapsed = same_boot ? reading.monotonic - monotonic_ : std::max(Millis{0}, reading.wall - wall_);
-    trusted_ += elapsed;
+    if (same_boot) {
+        trusted_ += reading.monotonic - monotonic_;
+    } else {
+        // The time since boot was measured. The time the PC was off wasn't: only the wall clock says how
+        // long, and it can be set forward in the firmware while the PC is off. So that part counts only
+        // if counting it loosens nothing; otherwise a lock carries on with the time it had left.
+        trusted_ += reading.monotonic;
+        const Millis off = std::max(Millis{0}, reading.wall - wall_ - reading.monotonic);
+        if (off > Millis{0} &&
+            arbiter(std::chrono::floor<Seconds>(trusted_), std::chrono::floor<Seconds>(trusted_ + off))) {
+            trusted_ += off;
+        }
+    }
+    const Millis elapsed = same_boot ? reading.monotonic - monotonic_ : reading.monotonic;
 
     const Millis difference = reading.wall - trusted_;
     last_jump_ignored_ = false;

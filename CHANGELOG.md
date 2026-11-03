@@ -122,6 +122,24 @@ milestone, newest first. What comes next is in the [roadmap](ROADMAP.md).
   - Unit tests, and CI on GitHub Actions.
   - GPL-3.0-or-later license, README, contributing guide and security policy.
 
+### Security
+
+From the M5 threat-model review ([docs/THREAT-MODEL.md](docs/THREAT-MODEL.md)):
+
+- The service only reads program files on this PC's own drives, never through a share or a symbolic
+  link. Before, `check \\server\share\x.exe` (or a program run from a share) made it read the file as
+  SYSTEM, signing the PC in to that server and stalling enforcement.
+- A program renamed `sirenproof….exe` is no longer exempt from app rules; only Sirenproof's own
+  programs in its own folder are.
+- Clients only trust the service's own process, as Windows' service manager names it, and console mode
+  refuses the service's pipe where Sirenproof is installed, so a copy can't pose as the service.
+- Setting the clock forward while the PC is off no longer ends a lock: time off counts only when that
+  can't end anything early.
+- Uninstalling starts a stopped service and asks it about locks, instead of going ahead.
+- Messages that nest more than 32 levels are refused before parsing, so they can't exhaust the stack.
+- The install-location check and the data folder use Windows' known folders, not environment variables.
+- An edited state file never becomes the backup, and a client can't supply its own friend-code hash.
+
 ### Changed
 
 - The pause for programs is drawn on the CPU: on screen in about 45 ms instead of 80–190 ms, since it no

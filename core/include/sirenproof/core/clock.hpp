@@ -40,9 +40,10 @@ using TimeChangeArbiter = std::function<bool(TimePoint from, TimePoint to)>;
 // - A larger jump is taken over at once only if the arbiter says it loosens nothing. Otherwise it's
 //   ignored, and the difference stays as offset() until a later jump brings the clock back, or
 //   accepting it becomes safe.
-// - Across a reboot the monotonic clock restarts, so trusted time advances by how far the wall clock
-//   moved while the PC was off, never backwards. A clock change made *before* the reboot was already
-//   seen and doesn't count as time passing.
+// - Across a reboot the monotonic clock restarts. Trusted time advances by the time since boot, plus
+//   the time the PC was off (by the wall clock) only if the arbiter says counting it loosens nothing:
+//   the firmware clock can be set forward while the PC is off. It never moves backwards. A clock change
+//   made *before* the reboot was already seen and doesn't count as time passing.
 class TrustedClock {
 public:
     static constexpr Millis kJumpTolerance = std::chrono::minutes{2};

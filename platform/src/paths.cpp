@@ -4,23 +4,31 @@
 
 #include "sirenproof/platform/win.hpp"
 
+#include <shlobj.h>
+
 namespace sirenproof::platform {
 
 namespace {
 
-std::wstring environment(const wchar_t* name, const wchar_t* fallback) {
-    const DWORD size = GetEnvironmentVariableW(name, nullptr, 0);
-    if (size == 0) return fallback;
-    std::wstring value(size, L'\0');
-    const DWORD written = GetEnvironmentVariableW(name, value.data(), size);
-    value.resize(written);
-    return value;
+// Where Windows keeps a known folder, from the registry the system set up, not from environment
+// variables, which whoever starts a program can change.
+std::filesystem::path known_folder(const KNOWNFOLDERID& id, const wchar_t* fallback) {
+    PWSTR path = nullptr;
+    std::filesystem::path result = fallback;
+    if (SUCCEEDED(SHGetKnownFolderPath(id, KF_FLAG_DONT_VERIFY, nullptr, &path)) && path) result = path;
+    CoTaskMemFree(path);
+    return result;
 }
 
 }  // namespace
 
 std::filesystem::path program_data_dir() {
-    return std::filesystem::path(environment(L"ProgramData", L"C:\\ProgramData")) / L"Sirenproof";
+    return known_folder(FOLDERID_ProgramData, L"C:\\ProgramData") / L"Sirenproof";
+}
+
+std::vector<std::filesystem::path> program_files_dirs() {
+    return {known_folder(FOLDERID_ProgramFiles, L"C:\\Program Files"),
+            known_folder(FOLDERID_ProgramFilesX86, L"C:\\Program Files (x86)")};
 }
 
 std::filesystem::path system_hosts_file() {

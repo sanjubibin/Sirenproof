@@ -5,6 +5,7 @@
 #include <format>
 #include <set>
 
+#include "sirenproof/platform/paths.hpp"
 #include "sirenproof/platform/win.hpp"
 
 namespace sirenproof::platform {
@@ -12,6 +13,9 @@ namespace sirenproof::platform {
 namespace {
 
 constexpr auto kReinspectAfter = std::chrono::seconds{60};  // in case a process id was reused
+
+constexpr std::wstring_view kOwnPrograms[] = {L"sirenproof.exe", L"sirenproof-service.exe", L"sirenproof-tray.exe",
+                                              L"sirenproof-ui.exe", L"sirenproof-host.exe"};
 
 std::wstring lower(std::wstring text) {
     for (wchar_t& c : text) c = static_cast<wchar_t>(towlower(c));
@@ -26,6 +30,8 @@ AppBlocker::AppBlocker(bool dry_run, Logger& log, std::chrono::seconds grace)
     const UINT length = GetWindowsDirectoryW(windows, MAX_PATH);
     windows_dir_ = lower(std::wstring(windows, length));
     if (!windows_dir_.empty() && windows_dir_.back() != L'\\') windows_dir_ += L'\\';
+    own_dir_ = lower(executable_dir().native());
+    if (!own_dir_.empty() && own_dir_.back() != L'\\') own_dir_ += L'\\';
 }
 
 void AppBlocker::reset() {
@@ -37,8 +43,11 @@ bool AppBlocker::eligible(const ProcessDetails& details) const {
     if (details.pid == self_pid_ || details.session == 0 || details.critical) return false;
     const std::wstring path = lower(widen(details.identity.path));
     if (!windows_dir_.empty() && path.starts_with(windows_dir_)) return false;
-    const std::wstring name = path.substr(path.rfind(L'\\') + 1);
-    return !name.starts_with(L"sirenproof");
+    // Sirenproof's own programs, by name and by where they are: a game renamed sirenproof.exe somewhere
+    // else is still a game, and Sirenproof's folder is one only administrators can write to.
+    if (own_dir_.empty() || !path.starts_with(own_dir_)) return true;
+    const std::wstring name = path.substr(own_dir_.size());
+    return std::ranges::find(kOwnPrograms, name) == std::ranges::end(kOwnPrograms);
 }
 
 int AppBlocker::sweep(const Decide& decide, const std::vector<std::string>& active_rules, Clock::time_point now) {

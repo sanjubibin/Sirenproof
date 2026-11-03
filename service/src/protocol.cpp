@@ -114,6 +114,7 @@ Json Host::paused_json() const {
 }
 
 std::string Host::handle(std::string_view request, const platform::PipeClient& client) {
+    if (core::nested_deeper_than(request, core::kMaxMessageDepth)) return reply_error("the message nests too deeply");
     const Json message = Json::parse(request, nullptr, false);
     if (message.is_discarded() || !message.is_object()) return reply_error("not a JSON object");
     if (message.contains("v") && message["v"] != 1) return reply_error("unsupported protocol version");
@@ -222,6 +223,11 @@ std::string Host::handle(std::string_view request, const platform::PipeClient& c
         } else if (op == "rules.add" || op == "rules.update") {
             // A new rule may come without an id; the engine then picks one (r1, r2, ...).
             Json rule_json = object_arg(args, "rule");
+            // A friend code is always made here and shown once; a client can't bring its own (nor see it).
+            if (const auto unlock = rule_json.find("unlock"); unlock != rule_json.end() && unlock->is_object()) {
+                unlock->erase("salt");
+                unlock->erase("hash");
+            }
             const bool pick_id = op == "rules.add" && !rule_json.contains("id");
             if (pick_id) rule_json["id"] = "new";
             core::Rule rule = core::rule_from_json(rule_json, "rule");

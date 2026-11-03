@@ -63,6 +63,22 @@ std::string client_sid(HANDLE pipe) {
 
 }  // namespace
 
+std::optional<std::uint32_t> service_process_id() {
+    const SC_HANDLE scm = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT);
+    if (!scm) return std::nullopt;
+    std::optional<std::uint32_t> pid;
+    if (const SC_HANDLE service = OpenServiceW(scm, std::wstring(kServiceName).c_str(), SERVICE_QUERY_STATUS)) {
+        SERVICE_STATUS_PROCESS status{};
+        DWORD needed = 0;
+        if (QueryServiceStatusEx(service, SC_STATUS_PROCESS_INFO, reinterpret_cast<BYTE*>(&status), sizeof(status), &needed)) {
+            pid = status.dwCurrentState == SERVICE_STOPPED ? 0 : status.dwProcessId;
+        }
+        CloseServiceHandle(service);
+    }
+    CloseServiceHandle(scm);
+    return pid;
+}
+
 std::filesystem::path process_image_path(std::uint32_t pid) {
     Handle process(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid));
     if (!process) return {};
@@ -230,12 +246,21 @@ std::expected<std::string, std::string> pipe_call(std::wstring_view name, std::s
     }
 
     if (options.expected_server) {
+        const auto impostor = [] { return std::unexpected("something other than the Sirenproof service is answering on its pipe"); };
         ULONG server_pid = 0;
-        const std::filesystem::path server =
-            GetNamedPipeServerProcessId(pipe.get(), &server_pid) ? process_image_path(server_pid) : std::filesystem::path{};
-        const std::wstring& want = options.expected_server->native();
-        if (server.empty() || CompareStringOrdinal(server.c_str(), -1, want.c_str(), -1, TRUE) != CSTR_EQUAL) {
-            return std::unexpected("something other than the Sirenproof service is answering on its pipe");
+        if (!GetNamedPipeServerProcessId(pipe.get(), &server_pid)) return impostor();
+        const bool service_pipe = CompareStringOrdinal(pipe_name.c_str(), -1, kServicePipeName.data(),
+                                                       static_cast<int>(kServicePipeName.size()), TRUE) == CSTR_EQUAL;
+        const auto installed = service_pipe ? service_process_id() : std::nullopt;
+        if (installed) {
+            // Windows says which process the service is; nothing else may answer for it.
+            if (*installed == 0 || server_pid != *installed) return impostor();
+        } else {
+            const std::filesystem::path server = process_image_path(server_pid);
+            const std::wstring& want = options.expected_server->native();
+            if (server.empty() || CompareStringOrdinal(server.c_str(), -1, want.c_str(), -1, TRUE) != CSTR_EQUAL) {
+                return impostor();
+            }
         }
     }
 

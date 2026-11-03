@@ -143,3 +143,11 @@ TEST_CASE("A rule's schedule converts on its own, as strictly as in a state file
     CHECK_THROWS_AS(when_from_json(Json::parse(R"({"weekly":[{"days":["mon"],"from":"9am","to":"17:00"}]})"), "when"),
                     JsonError);
 }
+
+TEST_CASE("nested_deeper_than catches deep nesting before it's parsed", "[json][safety]") {
+    CHECK_FALSE(nested_deeper_than(R"({"op":"status","args":{"rule":{"block":["a.com"]}}})", 4));
+    CHECK(nested_deeper_than(R"({"op":"status","args":{"rule":{"block":["a.com"]}}})", 3));
+    CHECK(nested_deeper_than(std::string(30'000, '['), kMaxMessageDepth));
+    // Brackets in strings, escaped quotes included, aren't nesting.
+    CHECK_FALSE(nested_deeper_than(R"({"goal":"[[[[ \" {{{{ ]]"})", 1));
+}

@@ -22,7 +22,7 @@ target_compile_definitions(sirenproof_platform PUBLIC
     UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX _WIN32_WINNT=0x0A00)
 target_link_libraries(sirenproof_platform
     PUBLIC Sirenproof::core
-    PRIVATE advapi32 bcrypt crypt32 netapi32 version wintrust)
+    PRIVATE advapi32 bcrypt crypt32 netapi32 ole32 shell32 uuid version wintrust)
 
 sirenproof_set_warnings(sirenproof_platform)
 sirenproof_harden(sirenproof_platform)

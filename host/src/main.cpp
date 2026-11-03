@@ -48,6 +48,7 @@ bool write_all(HANDLE out, std::string_view data) {
 
 std::string handle_message(std::string_view body, const std::wstring& pipe,
                            const std::optional<std::filesystem::path>& expected_server) {
+    if (core::nested_deeper_than(body, core::kMaxMessageDepth)) return Json{{"id", nullptr}, {"ok", false}, {"error", "malformed message"}}.dump();
     const Json message = Json::parse(body, nullptr, false);
     const Json id = message.is_object() && message.contains("id") ? message["id"] : Json(nullptr);
     const auto error = [&](std::string_view why) { return Json{{"id", id}, {"ok", false}, {"error", std::string(why)}}.dump(); };

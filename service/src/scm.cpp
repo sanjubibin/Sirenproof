@@ -1,5 +1,6 @@
 #include "scm.hpp"
 
+#include <cstdio>
 #include <cwctype>
 #include <format>
 
@@ -106,11 +107,8 @@ std::wstring lower(std::wstring text) {
 
 bool in_program_files(const fs::path& exe) {
     const std::wstring path = lower(exe.native());
-    for (const wchar_t* variable : {L"ProgramFiles", L"ProgramFiles(x86)", L"ProgramW6432"}) {
-        wchar_t value[MAX_PATH] = {};
-        const DWORD length = GetEnvironmentVariableW(variable, value, MAX_PATH);
-        if (length == 0 || length >= MAX_PATH) continue;
-        std::wstring prefix = lower(std::wstring(value, length));
+    for (const fs::path& folder : platform::program_files_dirs()) {
+        std::wstring prefix = lower(folder.native());
         if (!prefix.ends_with(L'\\')) prefix += L'\\';
         if (path.starts_with(prefix)) return true;
     }
@@ -194,27 +192,53 @@ std::expected<void, ServiceError> uninstall_service(bool remove_data) {
         return std::unexpected(ServiceError{kExitLocked, "a lock is active; Sirenproof can be removed once it ends"});
     };
 
-    // Ask the running service first, and only believe the real one.
-    const auto reply = platform::pipe_call(platform::kServicePipeName, R"({"v":1,"op":"service.can_stop"})",
-                                           {std::chrono::seconds{5}, platform::executable_path()});
-    if (reply) {
-        const core::Json answer = core::Json::parse(*reply, nullptr, false);
-        if (!answer.is_discarded() && answer.value("ok", false) && !answer["result"].value("can_stop", true)) return locked();
-    }
-
     ScHandle scm(OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT));
     if (!scm) return std::unexpected(ServiceError{1, "open an administrator command prompt first: " + platform::last_error_text()});
-    ScHandle service(OpenServiceW(scm.get(), kServiceName, SERVICE_STOP | SERVICE_QUERY_STATUS | DELETE));
+    ScHandle service(OpenServiceW(scm.get(), kServiceName, SERVICE_START | SERVICE_STOP | SERVICE_QUERY_STATUS | DELETE));
     if (!service) {
         if (GetLastError() == ERROR_SERVICE_DOES_NOT_EXIST) return std::unexpected(ServiceError{kExitNotInstalled, "Sirenproof isn't installed"});
         return std::unexpected(ServiceError{1, "can't open the service: " + platform::last_error_text()});
     }
 
+    // Only the running service knows whether a lock holds, so a stopped one (killed a moment ago, say) is
+    // started and asked. If it can't start at all, it isn't enforcing anything, and removing it is fine:
+    // a broken install must never be impossible to remove.
     SERVICE_STATUS status{};
-    if (!ControlService(service.get(), SERVICE_CONTROL_STOP, &status)) {
+    const auto state = [&] { return QueryServiceStatus(service.get(), &status) ? status.dwCurrentState : SERVICE_STOPPED; };
+    if (state() != SERVICE_RUNNING) {
+        if (!StartServiceW(service.get(), 0, nullptr) && GetLastError() != ERROR_SERVICE_ALREADY_RUNNING) {
+            std::fprintf(stderr, "sirenproof-service: the service won't start (%s), so nothing is enforced; removing it\n",
+                         platform::last_error_text().c_str());
+        }
+        for (int i = 0; i < 150 && state() != SERVICE_RUNNING && status.dwCurrentState != SERVICE_STOPPED; ++i) Sleep(100);
+    }
+
+    // Ask it, and only believe the real one (pipe_call checks that it's the service's own process).
+    if (state() == SERVICE_RUNNING) {
+        const auto reply = platform::pipe_call(platform::kServicePipeName, R"({"v":1,"op":"service.can_stop"})",
+                                               {std::chrono::seconds{5}, platform::executable_path()});
+        if (!reply) return std::unexpected(ServiceError{1, "can't ask the service whether a lock holds: " + reply.error()});
+        const core::Json answer = core::Json::parse(*reply, nullptr, false);
+        if (answer.is_discarded() || !answer.value("ok", false)) {
+            return std::unexpected(ServiceError{1, "the service's answer about locks was unreadable"});
+        }
+        if (!answer["result"].value("can_stop", false)) return locked();
+    }
+
+    // It said no lock holds. Windows only takes Stop once the service says so too, which can lag by up to
+    // a second after it starts.
+    for (int attempt = 0;; ++attempt) {
+        if (ControlService(service.get(), SERVICE_CONTROL_STOP, &status)) break;
         const DWORD error = GetLastError();
-        if (error == ERROR_INVALID_SERVICE_CONTROL) return locked();
-        if (error != ERROR_SERVICE_NOT_ACTIVE) return std::unexpected(ServiceError{1, "can't stop the service: " + platform::error_text(error)});
+        if (error == ERROR_SERVICE_NOT_ACTIVE) break;
+        if (error == ERROR_INVALID_SERVICE_CONTROL || error == ERROR_SERVICE_CANNOT_ACCEPT_CTRL) {
+            if (attempt < 30) {
+                Sleep(100);
+                continue;
+            }
+            return locked();
+        }
+        return std::unexpected(ServiceError{1, "can't stop the service: " + platform::error_text(error)});
     }
     for (int i = 0; i < 200 && QueryServiceStatus(service.get(), &status) && status.dwCurrentState != SERVICE_STOPPED; ++i) {
         Sleep(100);

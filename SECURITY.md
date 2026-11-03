@@ -26,9 +26,14 @@ Sirenproof has no releases yet. Once v1.0 is out, security fixes will go into th
 ## In scope
 
 - Privilege escalation through the service, its named pipe or its files.
-- Anything that lets one Windows user change another user's rules or locks.
+- Anything that lets a signed-in user loosen a rule faster than its delay allows, or end a lock other
+  than by its unlock method. (Until v1.x adds separate rules per Windows user, rules belong to the whole
+  PC: anyone signed in can see them and *tighten* them, and that's by design.)
 - Injection into the hosts file or browser policies.
-- Data leaving the machine. Sirenproof must never send anything anywhere.
+- Data leaving the machine. Sirenproof must never send anything anywhere, nor be made to connect to
+  another computer.
+
+The latest review of these is in [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md).
 
 ## Out of scope
 

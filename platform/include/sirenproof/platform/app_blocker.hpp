@@ -76,6 +76,7 @@ private:
     std::chrono::seconds grace_;
     std::uint32_t self_pid_;
     std::wstring windows_dir_;  // lower case, ends with '\'
+    std::wstring own_dir_;      // Sirenproof's own folder: lower case, ends with '\'
     AppIdentityCache identities_;
     std::map<std::uint32_t, Tracked> processes_;
     std::map<std::string, Clock::time_point> rule_since_;

@@ -17,6 +17,7 @@
 namespace sirenproof::platform {
 
 inline constexpr std::wstring_view kServicePipeName = L"\\\\.\\pipe\\Sirenproof.v1";
+inline constexpr std::wstring_view kServiceName = L"Sirenproof";  // as Windows' service manager knows it
 inline constexpr std::size_t kMaxPipeMessage = 64 * 1024;
 
 // SYSTEM, Administrators and the pipe's owner: full access. People signed in at the PC (IU): read and
@@ -64,9 +65,15 @@ private:
 
 struct PipeCallOptions {
     std::chrono::milliseconds timeout{5000};
-    // If set, the reply is only accepted when the program serving the pipe is this exe.
+    // If set, the reply is only accepted when the program serving the pipe is this exe. On the service's
+    // own pipe, once the Sirenproof service is installed, it must also be that service's process: the
+    // same exe run by someone else (console mode) doesn't count.
     std::optional<std::filesystem::path> expected_server;
 };
+
+// The installed Sirenproof service's process id: 0 while it isn't running, nullopt if it isn't
+// installed (or this account may not ask).
+std::optional<std::uint32_t> service_process_id();
 
 // Sends one request and waits for the reply. Connects with identification-only rights, so the server
 // can see who is asking but can't act as them.

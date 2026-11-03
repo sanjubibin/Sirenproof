@@ -9,6 +9,7 @@
 #include <wintrust.h>
 
 #include <algorithm>
+#include <cwctype>
 #include <format>
 
 #include "sirenproof/core/browser.hpp"
@@ -16,6 +17,42 @@
 namespace sirenproof::platform {
 
 namespace {
+
+// True if `path` is a file on a drive of this PC, reached without a symbolic link: only then may the
+// service (as SYSTEM) open it. A share (\\server\x.exe), a network drive, or a link pointing at one
+// would have Windows sign in to that server as this PC, and could stall the service while it waits.
+// Mount points stay on this PC, so they're fine. (Someone swapping a folder for a link between this
+// check and the read could still slip past; that takes the right to create links, which ordinary
+// accounts don't have outside Developer Mode.)
+bool is_local_file(const std::wstring& path) {
+    if (path.size() < 4 || !std::iswalpha(path[0]) || path[1] != L':' || path[2] != L'\\') return false;
+    // No wildcards, streams (x.exe:more) or . and .. folders, so the checks below see the real path.
+    if (path.find_first_of(L"*?\"<>|") != std::wstring::npos || path.find(L':', 2) != std::wstring::npos) return false;
+    if (path.find(L"\\.\\") != std::wstring::npos || path.find(L"\\..\\") != std::wstring::npos ||
+        path.ends_with(L"\\.") || path.ends_with(L"\\..")) {
+        return false;
+    }
+    const wchar_t root[] = {path[0], L':', L'\\', L'\0'};
+    switch (GetDriveTypeW(root)) {
+        case DRIVE_FIXED:
+        case DRIVE_REMOVABLE:
+        case DRIVE_CDROM:
+        case DRIVE_RAMDISK: break;
+        default: return false;
+    }
+    // Each folder on the way, then the file itself, as its parent folder lists it (without following it).
+    for (std::size_t end = path.find(L'\\', 3);; end = path.find(L'\\', end + 1)) {
+        const std::wstring part = path.substr(0, end);
+        WIN32_FIND_DATAW found{};
+        const HANDLE find = FindFirstFileExW(part.c_str(), FindExInfoBasic, &found, FindExSearchNameMatch, nullptr, 0);
+        if (find == INVALID_HANDLE_VALUE) return false;
+        FindClose(find);
+        if ((found.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) && found.dwReserved0 != IO_REPARSE_TAG_MOUNT_POINT) {
+            return false;
+        }
+        if (end == std::wstring::npos) return true;
+    }
+}
 
 ProcessStart from_filetime(const FILETIME& ft) {
     const auto ticks = static_cast<std::int64_t>((static_cast<std::uint64_t>(ft.dwHighDateTime) << 32) | ft.dwLowDateTime);
@@ -176,6 +213,7 @@ bool terminate_process(std::uint32_t pid, ProcessStart started) {
 
 void AppIdentityCache::complete(core::AppIdentity& identity) {
     const std::wstring path = widen(identity.path);
+    if (!is_local_file(path)) return;  // matched by its name and path only
     std::error_code ec;
     const auto written = std::filesystem::last_write_time(path, ec);
     if (ec) return;

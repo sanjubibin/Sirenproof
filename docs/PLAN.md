@@ -292,7 +292,7 @@ applies it. Everything else is a view or a messenger. Killing the tray app chang
 
 ### 4.3 Data
 
-- **State:** `%ProgramData%\Sirenproof\state.json` plus a last-known-good backup.
+- **State:** `%ProgramData%\Sirenproof\state.dat` (signed JSON) plus a last-known-good backup.
   - The folder's permissions allow only SYSTEM and Administrators. Users go through the service.
   - Writes are atomic: write to a temp file, then replace.
 - **Integrity:** the state file carries an HMAC with a key protected by DPAPI. If someone edits the file by
@@ -307,8 +307,11 @@ applies it. Everything else is a view or a messenger. Killing the tray app chang
 - **Requests:** `{"v":1,"id":7,"op":"lock.start","args":{…}}`
 - **Responses:** `{"id":7,"ok":false,"error":{"code":"loosen_delayed","until":"…"}}`
 - **Each kind of client gets an allow-list of operations.**
-  - The relay (identified by its verified path and signature) may only use `ext.*` operations.
-  - The tray and CLI may use the user operations.
+  - The relay (identified by its program's path, next to the service in an admin-only folder) may only
+    use `ext.*` operations, and only it may.
+  - Any other program of a signed-in user may use the user operations. That's safe because they can only
+    tighten at once; anything that loosens waits out a delay, or is refused during a lock.
+  - Messages nest at most 32 levels, checked before parsing.
   - No operation ever takes a command line, a file to execute or an IP address.
 
 ## 5. Security
@@ -330,12 +333,13 @@ bypass below.
 | Disable or remove the extension | Force-installed by policy (store builds). Otherwise, same as another browser. |
 | Kill the tray app | Nothing changes. The tray is only a view. |
 | Stop or kill the service | During a lock, the service refuses stop requests. If killed, Windows restarts it, and it fails closed: it reapplies everything on start. |
-| Uninstall | The uninstaller asks the service, and refuses during a lock. |
-| Change the clock | Lock time is counted with a clock Windows' time setting can't change (`QueryUnbiasedInterruptTime`), and the remaining time is stored, not an end timestamp [T36]. Schedules use a "trusted time" that ignores manual clock jumps while a rule is active. |
+| Uninstall | The uninstaller asks the service, and refuses during a lock. A stopped service is started and asked first; only one that can't start at all (and so enforces nothing) is removed without asking. |
+| Change the clock | Lock time is counted with a clock Windows' time setting can't change (`QueryInterruptTime`, which includes sleep) [T36]. Schedules and locks use a "trusted time" that ignores manual clock jumps while they would loosen a rule in force. |
+| Set the clock forward while the PC is off | After a reboot, only the time since boot counts for sure. The time the PC was off (by the firmware clock) counts only if that loosens nothing; otherwise a lock carries on with the time it had left. |
 | Change the time zone | Moves local time, which weekly schedules use, without moving UTC. In M2 the local offset goes through the same check as clock jumps, so a zone change that would loosen a rule in force is ignored until it's safe. |
 | Reboot | The service starts automatically, loads the remaining time, and fails closed. |
-| Rename or copy a game's exe | Matched by signer, original filename, folder or hash. |
-| Edit `state.json` | Folder permissions block normal users. An HMAC detects edits, and the last good state stays in force. |
+| Rename or copy a game's exe | Matched by signer, original filename, folder or Store package. Renaming it after Sirenproof doesn't help either: only Sirenproof's own programs, in its own folder, are exempt. |
+| Edit `state.dat` | Folder permissions block normal users. An HMAC detects edits when the service loads it, the last good state stays in force, and an edited file never becomes the backup. |
 | Safe Mode | Not defended in v1. Doing so takes malware-like registry keys [T38]. Documented. |
 | Use the phone | Out of scope. Documented. |
 
@@ -346,10 +350,15 @@ A service running as SYSTEM with a pipe is a classic privilege-escalation target
 - **Pipe access.**
   - The access list allows SYSTEM and Administrators full access, and the interactive user read/write only.
   - Remote clients are rejected. The first-instance flag prevents pipe squatting.
-  - Clients confirm the server process really is the service before trusting it.
+  - Clients confirm the server process really is the service before trusting it: once Sirenproof is
+    installed, it must be the process Windows' service manager names; before that, the exe next to them.
+    Console mode refuses the service's pipe on a PC where the service is installed.
 - **Strict input handling.**
-  - Size limits on every message, and unknown fields are rejected.
-  - Every string is validated: domains are normalised and checked; paths are canonicalised.
+  - Size and nesting limits on every message. Unknown fields are rejected in rules and settings.
+  - Every string is validated: domains are normalised and checked; program paths are normalised as
+    text (case, slashes), never resolved on disk.
+  - The service only reads files on this PC's own drives, never through a share or a symbolic link,
+    so a crafted path can't make it sign in to another computer.
 - **The service can only *block*.**
   - It never runs a program, never writes an IP address other than `0.0.0.0` / `::` into hosts, never
     redirects a domain somewhere else, and never touches protected processes.
@@ -359,21 +368,22 @@ A service running as SYSTEM with a pipe is a classic privilege-escalation target
     junction or link, or if an ordinary user owns it.
   - Every write goes through a temporary file in that folder, then an atomic swap.
 - **Where it runs from.** `install` refuses unless the exe is in a folder only administrators can
-  change, such as Program Files. A SYSTEM service anyone could replace would hand over the PC.
-- **No DLL planting.** The service and CLI are linked statically, so a SYSTEM process never loads the
-  C++ runtime from some folder on the `PATH`.
+  change, such as Program Files (found through Windows' known folders, not environment variables). A
+  SYSTEM service anyone could replace would hand over the PC.
+- **No DLL planting.** The service, CLI and relay are linked statically, so a SYSTEM process never loads
+  the C++ runtime from some folder on the `PATH`. The Qt and MinGW DLLs the main window needs sit in the
+  same admin-only folder, and none shares a name with a Windows DLL.
 - **The pipe.**
   - Ordinary users may read and write messages, but never create pipe instances.
   - Clients connect with identification-only rights, so the service can't act as them.
-  - The CLI only believes a service that runs from its own folder.
+  - The CLI, window, tray and relay only believe the service, as above.
 - **No network code** in the service or the relay. The extension makes no remote calls and loads no remote
   code. Its permissions are listed and explained in the README.
 - **Build hardening.**
   - `-fstack-protector-strong`, `_FORTIFY_SOURCE`, ASLR and DEP (`--dynamicbase`, `--nxcompat`,
     `--high-entropy-va`).
   - Warnings as errors in CI.
-  - `clang-tidy`.
-  - Later: a fuzzer on the protocol parser, using MSYS2's clang environment.
+  - Later: `clang-tidy`, and a fuzzer on the protocol parser, using MSYS2's clang environment.
 - **Releases.** Built by CI from tagged commits. SHA-256 checksums published. Signed binaries (see risks).
   `SECURITY.md` explains how to report a vulnerability.
 
@@ -423,8 +433,8 @@ Each milestone ends with something that runs, and a clear "done when".
 | **M1** | Core engine (no system changes) | Rule model and JSON; domain, page and app matching; schedules; Nudge/Block/Lock state machine; tighten-now / loosen-later rules; trusted clock; unlock methods. CLI `check` and `plan` commands print what *would* be blocked. | Unit tests cover loosen delays, lock expiry, and simulated clock jumps and reboots. |
 | **M2** | Service and enforcement | Service install and run; secure pipe; state with integrity check; hosts section with watcher; process watcher, app identity and close-with-warning; clean uninstall; CLI talks to the service; `tools/dev-reset.ps1`. *Built and integration-tested; VM acceptance test pending.* | In a VM, a 25-minute lock on `youtube.com` and Steam survives a hosts edit, killing the service, a clock change and a reboot. Uninstalling when unlocked leaves nothing behind. |
 | **M3** | Browsers | Extension and relay; page rules; YouTube in-page navigation; block and pause pages; heartbeat with grace period; DNS-over-HTTPS and private windows turned off by policy during a lock (Chrome, Edge, Brave), with the previous values restored afterwards. *Built and integration-tested; VM acceptance test pending.* | Shorts and the feed are blocked while `/watch` works. Incognito is unavailable during a lock. A disabled extension leads to warning, grace period, then closed windows with an explanation. |
-| **M4** | Interface | Style guide and clickable prototype approved first (done, see decision 6). *In progress: the main window's Now, Rules (with the schedule painter) and Start a lock screens, the command palette, the "Lock down this PC" setup, the tray and the pause for programs are built, and the §3.7 budgets are measured and met (docs/TESTING.md). Still to do: the usability test.* Win32 tray and Direct2D pause overlay. Qt Quick main window: mast ring, command palette, schedule painter, rule tester, ready-made lists, lock setup with hold-to-commit and preview, unlock challenges, pending changes, breaks. "Lock down this PC" setup (§3.8). | Two or three non-technical people set up a scheduled block without the CLI or any help. The §3.7 budgets are measured and met. |
-| **M5** | v1.0 release | Installer (refuses uninstall during a lock), signing, Chrome Web Store and Edge Add-ons listings, Defender testing, threat-model review, docs, checksums. | Signed installer on GitHub Releases. Install → use → uninstall passes on a fresh VM. |
+| **M4** | Interface | Style guide and clickable prototype approved first (done, see decision 6). *In progress: the main window's Now, Rules (with the schedule painter, ready-made lists and a New rule card) and Start a lock screens, the unlock challenges, the command palette, the "Lock down this PC" setup, the tray and the pause for programs are built, and the §3.7 budgets are measured and met (docs/TESTING.md). Still to do: the usability test (docs/TEST-TRACKER.md).* Win32 tray and Direct2D pause overlay. Qt Quick main window: mast ring, command palette, schedule painter, rule tester, ready-made lists, lock setup with hold-to-commit and preview, unlock challenges, pending changes, breaks. "Lock down this PC" setup (§3.8). | Two or three non-technical people set up a scheduled block without the CLI or any help. The §3.7 budgets are measured and met. |
+| **M5** | v1.0 release | Installer (refuses uninstall during a lock), signing, Chrome Web Store and Edge Add-ons listings, Defender testing, threat-model review, docs, checksums. *In progress: the installer, packaging, release workflow, checksums, user guide, privacy policy, store listing text and threat-model review are done (docs/RELEASING.md, docs/THREAT-MODEL.md). Still to do: a signing certificate, the store submissions, and the VM and Defender tests (docs/TEST-TRACKER.md).* | Signed installer on GitHub Releases. Install → use → uninstall passes on a fresh VM. |
 
 M0 and M1 are pure C++ logic and make no system changes. They're the safest place to start, and they
 exercise every hard decision (rules, locks, clocks) before anything touches Windows.

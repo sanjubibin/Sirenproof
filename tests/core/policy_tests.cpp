@@ -476,3 +476,19 @@ TEST_CASE_METHOD(Fixture, "Moving the Windows clock forward doesn't end a lock",
     CHECK(clock.now() == kMonday9 + Hours{5});
     CHECK(clock.offset() == Millis{0});
 }
+
+TEST_CASE_METHOD(Fixture, "A reboot with the clock set forward doesn't end a lock; a real night off does", "[policy][tamper]") {
+    add(session("exam", {"youtube.com"}, Strength::Lock, kMonday9, Hours{2}));
+    const TimeChangeArbiter arbiter = [&](TimePoint from, TimePoint to) { return engine.time_change_is_safe(from, to); };
+
+    // Half an hour in, the PC is shut down and its firmware clock moved a day on. Up for a minute.
+    const ClockCheckpoint saved{kMonday9 + Minutes{30}, kMonday9 + Minutes{30}, Minutes{30}, 1};
+    TrustedClock rebooted(saved, ClockReading{kMonday9 + Hours{24}, Minutes{1}, 2}, arbiter);
+    CHECK(rebooted.now() == kMonday9 + Minutes{31});
+    CHECK(web("youtube.com", rebooted.now()) == Action::Block);
+
+    // With no lock in force, the night counts as it should.
+    engine.tick(kMonday9 + Hours{3});
+    TrustedClock later(saved, ClockReading{kMonday9 + Hours{24}, Minutes{1}, 2}, arbiter);
+    CHECK(later.now() == kMonday9 + Hours{24});
+}

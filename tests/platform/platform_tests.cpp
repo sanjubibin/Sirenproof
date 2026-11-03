@@ -135,6 +135,27 @@ TEST_CASE("StateStore saves, loads and signs the state", "[platform][state]") {
     CHECK(read(dir.path / L"state.dat").starts_with("SIRENPROOF-STATE 1\n"));
 }
 
+TEST_CASE("An edited state never becomes the backup", "[platform][state][tamper]") {
+    TempDir dir;
+    StateStore store(dir.path);
+    REQUIRE(store.load());
+    core::State good;
+    good.settings.breaks_per_day = 1;
+    REQUIRE(store.save(good));
+    REQUIRE(store.save(good));  // nothing changed; still one good file and no backup yet
+
+    std::string text = read(dir.path / L"state.dat");
+    const std::size_t at = text.find("\"breaks_per_day\": 1");
+    REQUIRE(at != std::string::npos);
+    text.replace(at, 19, "\"breaks_per_day\": 9");
+    REQUIRE(write_file_atomic(dir.path / L"state.dat", text));  // edited by hand
+
+    core::State next = good;
+    next.settings.breaks_per_day = 2;
+    REQUIRE(store.save(next));  // the edited file must not be kept as the backup
+    CHECK(read(dir.path / L"state.dat.bak").find("\"breaks_per_day\": 9") == std::string::npos);
+}
+
 TEST_CASE("An edited state is never used; the backup is", "[platform][state][tamper]") {
     TempDir dir;
     StateStore store(dir.path);
@@ -315,6 +336,54 @@ TEST_CASE("AppBlocker gives an already-running program time to save", "[platform
     CHECK_FALSE(sleeper.exited_within(100));
     CHECK(blocker.sweep(decide, {"games"}, now + std::chrono::seconds{10}) == 1);
     CHECK(sleeper.exited_within(5000));
+}
+
+TEST_CASE("A program renamed after Sirenproof is still closed", "[platform][apps][safety]") {
+    if (!in_desktop_session()) SKIP("needs a desktop session: Sirenproof never closes session-0 services");
+    TempDir dir;
+    const fs::path renamed = dir.path / L"sirenproof-tray.exe";  // Sirenproof's name, but not its folder
+    fs::copy_file(fs::path(widen(SIRENPROOF_SLEEPER_EXE)), renamed);
+    std::wstring command = L"\"" + renamed.native() + L"\"";
+    STARTUPINFOW startup{};
+    startup.cb = sizeof(startup);
+    PROCESS_INFORMATION info{};
+    REQUIRE(CreateProcessW(nullptr, command.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &startup, &info));
+    Handle process(info.hProcess);
+    Handle thread(info.hThread);
+
+    Logger log = quiet_log();
+    AppBlocker blocker(false, log);
+    const auto decide = [](const core::AppIdentity& app) {
+        core::Verdict v;
+        if (app.path.ends_with("sirenproof-tray.exe")) {
+            v.action = core::Action::Block;
+            v.rule_id = "games";
+        }
+        return v;
+    };
+    const auto now = std::chrono::system_clock::now();
+    blocker.sweep(decide, {"games"}, now - std::chrono::seconds{30});
+    CHECK(blocker.sweep(decide, {"games"}, now) == 1);
+    CHECK(WaitForSingleObject(process.get(), 5000) == WAIT_OBJECT_0);
+    TerminateProcess(process.get(), 0);  // if it wasn't closed, so the folder can go
+    WaitForSingleObject(process.get(), 2000);
+}
+
+TEST_CASE("A program on a network share is never opened by the identity check", "[platform][process][safety]") {
+    // Reading it as SYSTEM would sign this PC in to that server. The name can't resolve, so a lookup would
+    // take seconds; skipping it takes none.
+    AppIdentityCache cache;
+    core::AppIdentity app{"\\\\sirenproof-test.invalid\\share\\game.exe", "", "", ""};
+    const auto started = std::chrono::steady_clock::now();
+    cache.complete(app);
+    CHECK(std::chrono::steady_clock::now() - started < std::chrono::milliseconds{500});
+    CHECK(app.publisher.empty());
+    CHECK(app.original_filename.empty());
+
+    // A file on this PC is still read: the test program itself, which has no signature or version.
+    core::AppIdentity self{narrow(executable_path().native()), "", "", ""};
+    cache.complete(self);
+    CHECK(self.path == narrow(executable_path().native()));
 }
 
 TEST_CASE("AppBlocker never closes anything in dry-run mode", "[platform][apps]") {

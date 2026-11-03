@@ -69,10 +69,23 @@ TEST_CASE("Many small clock nudges can't add up to a bypass", "[clock][tamper]")
     CHECK(clock.now() <= at("2026-11-02T09:01:42Z"));
 }
 
-TEST_CASE("Across a reboot, trusted time advances by how far the wall clock moved while off", "[clock]") {
+TEST_CASE("Across a reboot, the time the PC was off counts when that loosens nothing", "[clock]") {
     const ClockCheckpoint saved{kStart, kStart, Millis{5'000}, 1};
-    TrustedClock clock(saved, reading(kStart + hours{3}, Millis{1'000}, 2), kDenyAll);
+    TrustedClock clock(saved, reading(kStart + hours{3}, Millis{1'000}, 2), kAllowAll);
     CHECK(clock.now() == at("2026-11-02T12:00:00Z"));
+    CHECK(clock.offset() == Millis{0});
+}
+
+TEST_CASE("Setting the clock forward while the PC is off doesn't end a lock", "[clock][tamper]") {
+    // Off for an unknown time, with the firmware clock moved 3 hours on; up again for 10 seconds.
+    const ClockCheckpoint saved{kStart, kStart, Millis{5'000}, 1};
+    TrustedClock clock(saved, reading(kStart + hours{3}, seconds{10}, 2), kDenyAll);
+    CHECK(clock.now() == at("2026-11-02T09:00:10Z"));  // only the time since boot counts
+    CHECK(clock.last_jump_ignored());
+
+    // Once counting it is safe (the lock would have ended anyway), the clock catches up.
+    clock.update(reading(kStart + hours{3} + seconds{11}, seconds{11}), kAllowAll);
+    CHECK(clock.now() == at("2026-11-02T12:00:11Z"));
 }
 
 TEST_CASE("A clock change made before a reboot doesn't count as time passing", "[clock][tamper]") {
@@ -80,8 +93,9 @@ TEST_CASE("A clock change made before a reboot doesn't count as time passing", "
     clock.update(reading(kStart + hours{1}, Millis{0}), kDenyAll);  // moved 1 hour ahead: ignored
     const ClockCheckpoint saved = clock.checkpoint();
 
-    // Off for two hours, then booted again.
-    TrustedClock after(saved, reading(kStart + hours{3}, Millis{500}, 2), kDenyAll);
+    // Off for two hours, then booted again. Counting the time off is safe; jumping on to the clock isn't.
+    const TimeChangeArbiter until_11 = [](TimePoint, TimePoint to) { return to <= at("2026-11-02T11:00:00Z"); };
+    TrustedClock after(saved, reading(kStart + hours{3}, Millis{500}, 2), until_11);
     CHECK(after.now() == at("2026-11-02T11:00:00Z"));
     CHECK(after.offset() == hours{1});
 }
@@ -89,7 +103,7 @@ TEST_CASE("A clock change made before a reboot doesn't count as time passing", "
 TEST_CASE("Moving the clock back while the PC is off never moves trusted time back", "[clock][tamper]") {
     const ClockCheckpoint saved{kStart, kStart, Millis{5'000}, 1};
     TrustedClock clock(saved, reading(kStart - hours{6}, Millis{1'000}, 2), kDenyAll);
-    CHECK(clock.now() == at("2026-11-02T09:00:00Z"));
+    CHECK(clock.now() == at("2026-11-02T09:00:01Z"));  // just the second since boot
 }
 
 TEST_CASE("A service restart without a reboot uses the monotonic clock", "[clock]") {

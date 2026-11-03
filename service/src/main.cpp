@@ -37,7 +37,8 @@ console   Runs the service in this window until Ctrl+C. Defaults are safe for de
           data in .\dev-data next to this exe, and a stand-in hosts file there too. The real hosts
           file is only touched if you pass it with --hosts-file, and real browser policies only with
           --real-browser-policies. Browsers without the extension are never closed in console mode
-          unless you pass --guard-browsers.
+          unless you pass --guard-browsers. Where Sirenproof is installed, console mode needs its
+          own --pipe.
 install   Needs an administrator prompt, and this exe in a folder like C:\Program Files\Sirenproof.
           --allow-any-location skips that check: only for a test virtual machine.
 uninstall Exits with 3 while a lock holds, and 4 if Sirenproof isn't installed.
@@ -105,6 +106,12 @@ int run_console(std::vector<std::wstring> args) {
     options.data_dir = data_dir.empty() ? platform::executable_dir() / L"dev-data" : fs::path(data_dir);
     options.hosts_file = hosts_file.empty() ? options.data_dir / L"hosts" : fs::path(hosts_file);
     options.pipe_name = pipe.empty() ? std::wstring(platform::kServicePipeName) : pipe;
+    // With Sirenproof installed, its pipe belongs to the service: a console copy holding it while the
+    // service restarts would keep the real one out.
+    if (options.pipe_name == platform::kServicePipeName && service::check_stop() != service::StopCheck::NotInstalled) {
+        return fail("Sirenproof is installed on this PC, so its pipe belongs to the service. To try console mode "
+                    "alongside it, pass --pipe \\\\.\\pipe\\SirenproofDev");
+    }
     options.secure_data_dir = false;
     options.debug_limits = service::kDebugBuild;
 

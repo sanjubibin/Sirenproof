@@ -7,7 +7,7 @@ try went, is kept in the [test tracker](TEST-TRACKER.md).
 |---|---|---|
 | **Unit tests** (`core_tests`) | Rules, matching, schedules, locks, the trusted clock, the state file, hosts-file editing | Anywhere, including CI |
 | **Platform tests** (`platform_tests`) | Atomic files, folder trust checks, the signed state store, the pipe, closing programs | Anywhere. They use temporary files, private pipe names and a `sleeper.exe` built for the purpose, never the real hosts file, services or other programs |
-| **Acceptance test** | The installed service on a real Windows, including reboots and tampering | **A virtual machine only** |
+| **Acceptance test** | The installed service on a real Windows, including reboots and tampering, and the installer itself | **A virtual machine only** |
 
 Run the first two with:
 
@@ -185,7 +185,7 @@ Then try each bypass. Write down what happens:
 | 5 | `taskkill /f /im sirenproof-service.exe` | Windows restarts it within a few seconds; `sirenproof status` still shows the lock |
 | 6 | Settings → Time: turn off automatic time and move the clock 3 hours ahead | `sirenproof status` still shows the lock, with a note that the Windows clock is off |
 | 7 | Change the time zone | Same as 6 |
-| 8 | Restart the VM | After sign-in the lock still holds, with the same end time (minus the time the VM was off) |
+| 8 | Restart the VM | After sign-in the lock still holds, with the same end time. (Had the VM stayed off past the end, the lock would carry on with the time it had left: time off only counts when it can't end a lock early) |
 | 9 | `sirenproof-service uninstall` | Refused: a lock is active |
 | 10 | `sirenproof unlock exam`, then wait 10 minutes | Unlocked; YouTube loads again |
 | 11 | `sirenproof-service uninstall --remove-data` | Done. `sc query Sirenproof` says the service doesn't exist; the hosts file has no Sirenproof section; `C:\ProgramData\Sirenproof` is gone |
@@ -226,6 +226,13 @@ as the VM's only administrator, with the service installed and `sirenproof-ui.ex
 | 22 | Step 4: **Open User Accounts**, change your account type to Standard (Keeper's password is asked for) | The step shows that your account is now a standard user |
 | 23 | Sign out and back in. Try `sc stop Sirenproof`, editing the hosts file, and uninstalling | Each needs Keeper's password |
 | 24 | Undo: as Keeper, make your account an administrator again | Step 1 shows it as an administrator again |
+
+### The installer (milestone M5)
+
+Instead of copying the programs by hand, install with the setup from `tools\package.ps1` (or the CI
+run's **sirenproof-installer** artifact). The checks are section 3 of the
+[test tracker](TEST-TRACKER.md). The installer runs `sirenproof-service install --enforce` itself, so
+the tests above work the same afterwards, with `C:\Program Files\Sirenproof` as the folder.
 
 ### If something goes wrong
 

@@ -45,7 +45,8 @@ std::optional<std::filesystem::path> browser_ancestor(std::uint32_t pid);
 
 // Original filename (version resource) and publisher (a valid Authenticode signature) of an exe.
 // Both are slow to read, so they're cached per path and last-write time. Signature checks never go
-// to the network.
+// to the network, and only files on this PC's own drives are read: a program on a share, or behind a
+// symbolic link, is matched by its name and path alone.
 class AppIdentityCache {
 public:
     void complete(core::AppIdentity& identity);

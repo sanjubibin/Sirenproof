@@ -386,6 +386,25 @@ Json when_to_json(const When& when) { return write_when(when); }
 Settings settings_from_json(const Json& value, const std::string& path) { return read_settings(value, path); }
 Json settings_to_json(const Settings& settings) { return write_settings(settings); }
 
+bool nested_deeper_than(std::string_view text, int limit) {
+    int depth = 0;
+    bool in_string = false;
+    for (std::size_t i = 0; i < text.size(); ++i) {
+        const char c = text[i];
+        if (in_string) {
+            if (c == '\\') ++i;  // skip what's escaped, which may be a quote
+            else if (c == '"') in_string = false;
+        } else if (c == '"') {
+            in_string = true;
+        } else if (c == '[' || c == '{') {
+            if (++depth > limit) return true;
+        } else if (c == ']' || c == '}') {
+            --depth;
+        }
+    }
+    return false;
+}
+
 std::expected<State, std::string> parse_state(std::string_view json_text) {
     try {
         const json root = json::parse(json_text);

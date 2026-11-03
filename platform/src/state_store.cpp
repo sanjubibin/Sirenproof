@@ -114,7 +114,9 @@ std::expected<void, std::string> StateStore::save(const core::State& state) {
     const std::string content = std::string(kHeader) + "\n" + signature + "\n" + json;
 
     const std::filesystem::path main = dir_ / L"state.dat";
-    if (std::filesystem::exists(main)) {
+    // The file being replaced becomes the backup, but only if it's still genuine: an edited one would
+    // otherwise push out the last good state.
+    if (std::filesystem::exists(main) && read_signed(main)) {
         if (auto current = read_file(main); current && *current != content) {
             if (auto kept = write_file_atomic(dir_ / L"state.dat.bak", *current); !kept) return kept;
         }
