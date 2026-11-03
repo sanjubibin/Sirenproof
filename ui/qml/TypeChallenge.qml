@@ -28,6 +28,17 @@ ColumnLayout {
 
     spacing: 10
 
+    // How many characters went in between `before` and `after`: what's left once the parts they share at
+    // the start and the end are taken away. Typing puts in one at a time, even over a selection.
+    function inserted(before, after) {
+        let start = 0
+        while (start < before.length && start < after.length && before[start] === after[start]) ++start
+        let end = 0
+        while (end < before.length - start && end < after.length - start
+               && before[before.length - 1 - end] === after[after.length - 1 - end]) ++end
+        return after.length - start - end
+    }
+
     // As the service reads it: case, dashes, spaces and line breaks don't matter, and o/i/l count as 0/1.
     function normalise(text) {
         return text.toLowerCase().replace(/[\s-]/g, "").replace(/o/g, "0").replace(/[il]/g, "1")
@@ -151,7 +162,7 @@ ColumnLayout {
         }
 
         onTextChanged: {
-            if (text.length > accepted.length + 1) {
+            if (root.inserted(accepted, text) > 1) {
                 text = accepted  // comes back through here, and is accepted
                 cursorPosition = text.length
                 root.message("Only typing counts here. Pasting and dropping text in are turned off.")
