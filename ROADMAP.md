@@ -45,10 +45,12 @@ or any help, and the budgets are met.
       (`installer\sirenproof.iss`, made by `tools\package.ps1`; VM test pending)
 - [ ] Code signing: `tools\package.ps1 -Sign` and the steps are ready ([RELEASING.md](docs/RELEASING.md));
       needs a certificate (SignPath Foundation application)
-- [ ] Chrome Web Store and Edge Add-ons listings
+- [ ] Chrome Web Store and Edge Add-ons listings: the zip, text and privacy answers are ready
+      ([STORE-LISTING.md](docs/STORE-LISTING.md)); submitting needs the store accounts
 - [ ] Testing against Microsoft Defender
 - [ ] Threat-model review
-- [ ] User docs and release checksums
+- [x] User docs and release checksums ([USER-GUIDE.md](docs/USER-GUIDE.md), [PRIVACY.md](docs/PRIVACY.md),
+      `SHA256SUMS.txt` from `tools\package.ps1`)
 
 **Done when** a signed installer is on GitHub Releases, and install → use → uninstall passes on a fresh
 virtual machine.

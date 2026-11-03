@@ -156,6 +156,17 @@ or download the **sirenproof-installer** artifact from the CI run. Copy
 | 4.5 | On a fork of the repository, push the tag `v0.1.0` (the version in `CMakeLists.txt`) | **Release** runs and leaves a *draft* release with the three files; nothing is published | ☐ | Delete the draft and the tag afterwards. A tag that doesn't match the version must fail at *Check the tag* |
 | 4.6 | Once there's a certificate: `tools\package.ps1 -Sign -CertThumbprint <thumbprint>` | `Get-AuthenticodeSignature` says `Valid` for the five programs, the setup and `unins000.exe`; SmartScreen names the publisher | ⏸ | Needs a certificate (RELEASING.md, *Code signing*) |
 
+## 5. Docs and store listings (M5)
+
+| # | Try this | Expected | Result | Notes |
+|---|---|---|---|---|
+| 5.1 | Follow [USER-GUIDE.md](USER-GUIDE.md) from *Install* to *Uninstall* in the VM, as a newcomer would | Every step, label and button it names is there and does what it says | ☐ | Note any wording that doesn't match the window |
+| 5.2 | `C:\Program Files\Sirenproof\USER-GUIDE.md` and `CHANGELOG.md` | Installed with the app | ☐ | |
+| 5.3 | Load `C:\Program Files\Sirenproof\extension` unpacked, as the guide says | Loads, with the id `cgpgilkcgaojdaclgkllhndfgdphgdje`; blocking a Short works | ☐ | |
+| 5.4 | Chrome Web Store: submit the zip with the text in [STORE-LISTING.md](STORE-LISTING.md) | Accepted; note the store's id | ⏸ | Needs the $5 developer account. Then add the id to `kExtensionIds` (RELEASING.md) |
+| 5.5 | Edge Add-ons: the same | Accepted; note the id | ⏸ | Needs a Partner Center account |
+| 5.6 | After 5.4/5.5 and a new release: install the extension from each store | It reaches the app (a blocked Short shows the block page) | ⏸ | |
+
 ## Problems found
 
 | # | Test | What happened | Fixed in |
