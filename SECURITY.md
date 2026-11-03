@@ -33,10 +33,11 @@ Sirenproof has no releases yet. Once v1.0 is out, security fixes will go into th
 - Data leaving the machine. Sirenproof must never send anything anywhere, nor be made to connect to
   another computer.
 
-The latest review of these is in [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md).
+The latest review of these, for the Windows app, is in
+[windows/docs/THREAT-MODEL.md](windows/docs/THREAT-MODEL.md).
 
 ## Out of scope
 
 Bypassing a block or lock *as an administrator of your own PC*. This is a known limit of any blocker
-without a kernel driver, described in [the plan](docs/PLAN.md#51-against-your-own-impulses-tamper-resistance).
+without a kernel driver, described in [the plan](windows/docs/PLAN.md#51-against-your-own-impulses-tamper-resistance).
 Ideas that make bypassing harder without using malware techniques are welcome as regular issues.

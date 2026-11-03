@@ -1,7 +1,7 @@
-# Build output
-/build/
-/dist/
-/out/
+# Build output, in each platform's folder
+/windows/build/
+/windows/dist/
+/windows/out/
 
 # Local CMake overrides (machine-specific toolchain paths)
 CMakeUserPresets.json

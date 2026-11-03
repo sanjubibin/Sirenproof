@@ -1,7 +1,11 @@
 # Contributing to Sirenproof
 
-Thanks for your interest! Sirenproof is early in development. Read [docs/PLAN.md](docs/PLAN.md) before
-starting anything big, and open an issue first so we can agree on the approach.
+Thanks for your interest! Sirenproof is early in development. Read [windows/docs/PLAN.md](windows/docs/PLAN.md)
+before starting anything big, and open an issue first so we can agree on the approach.
+
+Each platform has its own folder: [`windows/`](windows/) is being built now, and `macos/`, `android/` and
+`ios/` are planned. Everything below is about the Windows app; paths and commands are from the
+`windows` folder.
 
 ## Ground rules
 
@@ -18,10 +22,11 @@ These come from the plan's principles and aren't up for debate in individual pul
 
 ## Building and testing
 
-See [Building from source](README.md#building-from-source). Before sending a pull request, check that
-both of these pass without warnings:
+See [Building from source](windows/README.md#building-from-source). Before sending a pull request,
+check that both of these pass without warnings, from the `windows` folder:
 
 ```bash
+cd windows
 C:/msys64/ucrt64/bin/cmake.exe --build --preset debug
 C:/msys64/ucrt64/bin/ctest.exe --preset debug
 ```
@@ -34,7 +39,8 @@ Code that changes the system (hosts file, browser policies, services, closing pr
 out of your own PC if it has a bug:
 
 - **Test real enforcement in a virtual machine,** not on your daily PC. On Windows Home, which has no
-  Hyper-V or Windows Sandbox, use VirtualBox. [docs/TESTING.md](docs/TESTING.md) has the steps.
+  Hyper-V or Windows Sandbox, use VirtualBox. [windows/docs/TESTING.md](windows/docs/TESTING.md) has
+  the steps.
 - **Use console mode on your own PC.** `sirenproof-service console` writes to a stand-in hosts file,
   and debug builds only log what they would do unless you pass `--enforce`. Debug builds also cap lock
   sessions at 2 minutes.
@@ -43,8 +49,8 @@ out of your own PC if it has a bug:
 
 ## Code style
 
-- C++23. Formatting follows [.clang-format](.clang-format), and [.editorconfig](.editorconfig) covers the
-  rest.
+- C++23. Formatting follows [windows/.clang-format](windows/.clang-format), and
+  [.editorconfig](.editorconfig) covers the rest.
 - Prefer small, pure functions in `core/` with tests next to every behaviour change.
 - Comments explain *why*, not *what*.
 

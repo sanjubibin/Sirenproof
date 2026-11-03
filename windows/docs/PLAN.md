@@ -404,8 +404,12 @@ A service running as SYSTEM with a pipe is a classic privilege-escalation target
 
 ## 7. Repository layout
 
+The repository has a folder per platform: `windows/` (this plan), and `macos/`, `android/` and `ios/`
+for later. LICENSE, CONTRIBUTING.md, SECURITY.md, `.editorconfig` and the CI workflows in `.github/`
+stay at the top, shared by all of them. The Windows app:
+
 ```
-Sirenproof/
+windows/
 ├─ CMakeLists.txt, CMakePresets.json   MSYS2 UCRT64 debug / release presets
 ├─ cmake/                              Warnings, hardening flags, helpers
 ├─ core/            include/ src/      Pure logic library (no Windows headers)
@@ -419,8 +423,8 @@ Sirenproof/
 ├─ installer/                          Inno Setup script
 ├─ tests/                              Catch2 unit tests (core), platform tests
 ├─ tools/                              Dev scripts, e.g. dev-reset.ps1 (undo all system changes)
-├─ docs/                               RESEARCH.md, PLAN.md, ARCHITECTURE.md, SECURITY.md
-├─ README.md, LICENSE, CONTRIBUTING.md, SECURITY.md, .clang-format, .editorconfig
+├─ docs/                               User guide, research, plan, testing, threat model, releasing
+├─ README.md, CHANGELOG.md, ROADMAP.md, .clang-format
 ```
 
 ## 8. Milestones

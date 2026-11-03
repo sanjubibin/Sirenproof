@@ -190,4 +190,4 @@ only want to think twice about, use Nudge: the program is never closed.
 Windows' time can't move.
 
 **Something's wrong.** Report it on the [issues page](https://github.com/sanjubibin/Sirenproof/issues).
-For a security problem, see [SECURITY.md](../SECURITY.md) instead.
+For a security problem, see [SECURITY.md](../../SECURITY.md) instead.

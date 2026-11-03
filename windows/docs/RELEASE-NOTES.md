@@ -11,12 +11,12 @@ open source (GPL-3.0-or-later), and nothing it knows ever leaves your PC.
 
 2. Run it. It needs administrator rights once, to install the background service.
 3. For blocking single pages (like YouTube Shorts) in Chrome or Edge, add the browser extension. Until
-   it's in the stores, the [user guide](https://github.com/sanjubibin/Sirenproof/blob/main/docs/USER-GUIDE.md#the-browser-extension)
+   it's in the stores, the [user guide](https://github.com/sanjubibin/Sirenproof/blob/main/windows/docs/USER-GUIDE.md#the-browser-extension)
    says how to load it from `C:\Program Files\Sirenproof\extension`.
 
 ## What's new
 
-See the [changelog](https://github.com/sanjubibin/Sirenproof/blob/main/CHANGELOG.md).
+See the [changelog](https://github.com/sanjubibin/Sirenproof/blob/main/windows/CHANGELOG.md).
 
 ## Good to know
 

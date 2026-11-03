@@ -14,6 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The Windows app, in windows/.
   build-and-test:
     name: ${{ matrix.preset }}
     runs-on: windows-latest
@@ -24,6 +25,7 @@ jobs:
     defaults:
       run:
         shell: msys2 {0}
+        working-directory: windows
     steps:
       - uses: actions/checkout@v4
 
@@ -73,14 +75,17 @@ jobs:
         with:
           name: sirenproof-installer
           path: |
-            build/package/*.exe
-            build/package/*.zip
-            build/package/SHA256SUMS.txt
+            windows/build/package/*.exe
+            windows/build/package/*.zip
+            windows/build/package/SHA256SUMS.txt
           if-no-files-found: error
 
   extension:
     name: extension
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: windows
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

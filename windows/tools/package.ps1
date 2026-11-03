@@ -13,7 +13,7 @@
       5. zips the staged extension for the browser stores;
       6. writes SHA256SUMS.txt next to everything it made.
 
-    Everything lands in build\package. Nothing is installed and nothing on this PC changes.
+    Everything lands in windows\build\package. Nothing is installed and nothing on this PC changes.
 
     Needs MSYS2 at C:\msys64 (or -Msys) with the packages from the README, Inno Setup 6.3 or later for
     the installer, and the Windows SDK's signtool.exe for -Sign.
@@ -96,7 +96,7 @@ $extension = Join-Path $stage 'extension'
 Copy-Item (Join-Path $root 'extension') $extension -Recurse
 Remove-Item (Join-Path $extension 'tests') -Recurse -Force -ErrorAction SilentlyContinue
 
-Copy-Item (Join-Path $root 'LICENSE') (Join-Path $stage 'LICENSE.txt')
+Copy-Item (Join-Path (Split-Path -Parent $root) 'LICENSE') (Join-Path $stage 'LICENSE.txt')  # shared by every platform
 Copy-Item (Join-Path $root 'docs\USER-GUIDE.md') (Join-Path $stage 'USER-GUIDE.md')
 Copy-Item (Join-Path $root 'CHANGELOG.md') (Join-Path $stage 'CHANGELOG.md')
 

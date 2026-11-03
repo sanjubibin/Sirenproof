@@ -1,6 +1,7 @@
 # Releasing Sirenproof
 
-How a version goes from `main` to a download on GitHub Releases. The plan's bar for v1.0 (M5): a
+How a version of the Windows app goes from `main` to a download on GitHub Releases. Paths and commands
+are from the repository's `windows` folder. The plan's bar for v1.0 (M5): a
 **signed** installer on GitHub Releases, and install → use → uninstall passing on a fresh virtual machine.
 
 ## Checklist

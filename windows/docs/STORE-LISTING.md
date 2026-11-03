@@ -14,7 +14,7 @@ the same.
 | Language | English |
 | Website | https://github.com/sanjubibin/Sirenproof |
 | Support | https://github.com/sanjubibin/Sirenproof/issues |
-| Privacy policy | https://github.com/sanjubibin/Sirenproof/blob/main/docs/PRIVACY.md |
+| Privacy policy | https://github.com/sanjubibin/Sirenproof/blob/main/windows/docs/PRIVACY.md |
 | Price | Free |
 
 ## Description

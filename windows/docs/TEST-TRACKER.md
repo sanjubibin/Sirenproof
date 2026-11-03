@@ -35,7 +35,7 @@ Update **Done** as you go, so this table shows the state at a glance.
 | # | Step | Result | Notes |
 |---|---|---|---|
 | 0.1 | Install [MSYS2](https://www.msys2.org/), then in its UCRT64 shell: `pacman -S --needed mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-catch mingw-w64-ucrt-x86_64-nlohmann-json mingw-w64-ucrt-x86_64-qt6-base mingw-w64-ucrt-x86_64-qt6-declarative` | ☐ | |
-| 0.2 | `git pull`, then `cmake --preset debug` and `cmake --build --preset debug` | ☐ | |
+| 0.2 | `git pull`, `cd windows` (every command in this tracker runs from there), then `cmake --preset debug` and `cmake --build --preset debug` | ☐ | The Windows app moved into `windows/` on 3 November 2026; delete any old `build` folder at the top of the repository |
 | 0.3 | `ctest --preset debug`: every test passes | ☐ | On the PC this was written on, one platform test, *read_administrators agrees with this process's own token*, already failed before any of this work (that PC signs in through Azure AD). Note whether it fails here too |
 | 0.4 | `node --test extension/tests/background.test.mjs` | ☐ | |
 | 0.5 | `cmake --build --preset release` builds too (the acceptance tests need it) | ☐ | |

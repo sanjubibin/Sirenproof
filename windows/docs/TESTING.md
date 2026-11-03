@@ -1,7 +1,8 @@
 # Testing Sirenproof
 
 Three levels of testing, from safest to most real. What still has to be tried by hand, and how each
-try went, is kept in the [test tracker](TEST-TRACKER.md).
+try went, is kept in the [test tracker](TEST-TRACKER.md). Every command here runs from the repository's
+`windows` folder.
 
 | Level | What it covers | Where it runs |
 |---|---|---|
