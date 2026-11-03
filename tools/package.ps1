@@ -160,9 +160,19 @@ if (-not $NoInstaller) {
 }
 
 # ---- 5. The extension for the stores ----
+# The stores give the extension its own id and don't take the manifest's "key", which only pins the id
+# for loading it unpacked; so the store copy goes without it.
 Step 'Zipping the extension for the Chrome Web Store and Edge Add-ons'
+$manifest = Get-Content (Join-Path $extension 'manifest.json') -Raw | ConvertFrom-Json
+if ($manifest.version -ne $version) { throw "extension\manifest.json says $($manifest.version), CMakeLists.txt says $version." }
+$storeCopy = Join-Path $out 'extension-store'
+Copy-Item $extension $storeCopy -Recurse
+$manifestPath = Join-Path $storeCopy 'manifest.json'
+$lines = Get-Content $manifestPath | Where-Object { $_ -notmatch '^\s*"key"\s*:' }
+[IO.File]::WriteAllText($manifestPath, (($lines -join "`n") + "`n"))
 $extensionZip = Join-Path $out "Sirenproof-extension-$version.zip"
-Compress-Archive -Path (Join-Path $extension '*') -DestinationPath $extensionZip
+Compress-Archive -Path (Join-Path $storeCopy '*') -DestinationPath $extensionZip
+Remove-Item $storeCopy -Recurse -Force
 
 # ---- 6. Checksums ----
 Step 'Writing checksums'

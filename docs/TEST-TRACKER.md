@@ -145,6 +145,17 @@ or download the **sirenproof-installer** artifact from the CI run. Copy
 | 3.17 | Microsoft Defender: full scan of `C:\Program Files\Sirenproof`, and watch **Protection history** during 3.4–3.12 | Nothing flagged; if the hosts-file edits are flagged, note exactly what | ☐ | This is the M5 "testing against Defender" item |
 | 3.18 | SmartScreen on the downloaded (unsigned) setup | Note what it says | ☐ | Expected until it's signed (section 4) |
 
+## 4. Release workflow, checksums and signing (M5)
+
+| # | Try this | Expected | Result | Notes |
+|---|---|---|---|---|
+| 4.1 | After pushing to `main`: the CI run | Both presets green; the `ci-release` job has a **sirenproof-installer** artifact with the setup, the extension zip and `SHA256SUMS.txt` | ☐ | |
+| 4.2 | `Get-FileHash` on the downloaded setup | Matches its line in `SHA256SUMS.txt` | ☐ | |
+| 4.3 | Open the extension zip | No `"key"` in its `manifest.json`; no `tests` folder | ☐ | |
+| 4.4 | Change only `extension/manifest.json`'s version, run `tools\package.ps1 -SkipBuild` | Stops, saying the two versions differ. Put it back | ☐ | |
+| 4.5 | On a fork of the repository, push the tag `v0.1.0` (the version in `CMakeLists.txt`) | **Release** runs and leaves a *draft* release with the three files; nothing is published | ☐ | Delete the draft and the tag afterwards. A tag that doesn't match the version must fail at *Check the tag* |
+| 4.6 | Once there's a certificate: `tools\package.ps1 -Sign -CertThumbprint <thumbprint>` | `Get-AuthenticodeSignature` says `Valid` for the five programs, the setup and `unins000.exe`; SmartScreen names the publisher | ⏸ | Needs a certificate (RELEASING.md, *Code signing*) |
+
 ## Problems found
 
 | # | Test | What happened | Fixed in |

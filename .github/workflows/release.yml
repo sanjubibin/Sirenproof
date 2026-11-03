@@ -1,0 +1,70 @@
+name: Release
+
+# Pushing a tag like v0.1.0 builds and tests the release, packages the installer, and opens a *draft*
+# GitHub Release with the installer, the extension zip and SHA256SUMS.txt. Nothing is published until
+# someone reviews the draft (docs/RELEASING.md).
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: msys2/setup-msys2@v2
+        id: msys2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-catch
+            mingw-w64-ucrt-x86_64-nlohmann-json
+            mingw-w64-ucrt-x86_64-qt6-base
+            mingw-w64-ucrt-x86_64-qt6-declarative
+
+      - name: Check the tag matches the version
+        shell: pwsh
+        run: |
+          $project = Get-Content CMakeLists.txt -Raw
+          if ($project -notmatch 'project\(Sirenproof\s+VERSION\s+(\d+\.\d+\.\d+)') { throw 'no version in CMakeLists.txt' }
+          if ("v$($Matches[1])" -ne '${{ github.ref_name }}') { throw "tag ${{ github.ref_name }} doesn't match version $($Matches[1])" }
+
+      - name: Configure
+        run: cmake --preset ci-release
+
+      - name: Build
+        run: cmake --build --preset ci-release
+
+      - name: Test
+        run: ctest --preset ci-release
+
+      - name: Test the browser extension
+        shell: pwsh
+        run: node --test extension/tests/background.test.mjs
+
+      # Unsigned for now: see docs/RELEASING.md, "Code signing", for adding a signing step here.
+      - name: Package
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+          ./tools/package.ps1 -Preset ci-release -SkipBuild -Msys '${{ steps.msys2.outputs.msys2-location }}'
+
+      - name: Draft the GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $files = Get-ChildItem build/package -File | Where-Object { $_.Extension -in '.exe', '.zip', '.txt' } | ForEach-Object FullName
+          gh release create '${{ github.ref_name }}' @files --draft --verify-tag --title 'Sirenproof ${{ github.ref_name }}' --notes-file docs/RELEASE-NOTES.md
