@@ -18,8 +18,9 @@ milestone, newest first. What comes next is in the [roadmap](ROADMAP.md).
   - `sirenproof-service can-stop` says whether the service could be stopped right now (exit code 3 while
     a lock holds), and `uninstall` exits with 3 during a lock and 4 if there's nothing to remove.
   - `tools\package.ps1` builds a release: it stages the programs with Qt and the compiler's runtime,
-    optionally signs them, compiles the installer, zips the extension for the stores, and writes
-    `SHA256SUMS.txt`. CI does the same on every push and keeps the installer as an artifact.
+    checks the staged main window starts with MSYS2 off the PATH, optionally signs them, compiles the
+    installer, zips the extension for the stores, and writes `SHA256SUMS.txt`. CI does the same on
+    every push and keeps the installer as an artifact.
 
 - **Interface (M4, in progress)**
   - The "deep-water HUD" design, approved as a clickable prototype before any interface code.
@@ -160,3 +161,10 @@ From the M5 threat-model review ([docs/THREAT-MODEL.md](docs/THREAT-MODEL.md)):
   type, or the friend-code tries left, the next wait and when guessing may resume (`friend_status`).
 - Asking for the text to type again gives the same text until it's typed (or the lock is tightened to a
   longer one), and typed codes may run over several lines.
+
+### Fixed
+
+- The packaged main window couldn't start: it exited with "module QtQuick.Layouts is not installed",
+  because MSYS2's Qt looks for its QML modules where MSYS2 keeps them rather than next to the program.
+  `tools\package.ps1` now writes a `qt.conf` into the stage, and checks the staged window starts on its
+  own, so this can't come back unnoticed. Found by the test tracker's check 3.2.

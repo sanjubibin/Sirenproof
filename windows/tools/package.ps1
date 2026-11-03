@@ -6,7 +6,8 @@
     In order, it:
       1. builds the `release` preset (or -Preset) and runs its tests (skip with -SkipBuild or -SkipTests);
       2. stages the programs in build\package\stage, with the Qt libraries the main window needs
-         (windeployqt6) and the compiler's runtime DLLs they all load, found with objdump;
+         (windeployqt6), a qt.conf so Qt finds them there, and the compiler's runtime DLLs they all
+         load, found with objdump; then checks the staged main window starts with MSYS2 off the PATH;
       3. with -Sign, signs every program and DLL it built (signtool, certificate by -CertThumbprint);
       4. compiles installer\sirenproof.iss with Inno Setup (skip with -NoInstaller), signing the
          installer and uninstaller too with -Sign;
@@ -101,9 +102,17 @@ Copy-Item (Join-Path $root 'docs\USER-GUIDE.md') (Join-Path $stage 'USER-GUIDE.m
 Copy-Item (Join-Path $root 'CHANGELOG.md') (Join-Path $stage 'CHANGELOG.md')
 
 Step 'Adding the Qt libraries for the main window'
+# qoffscreen as well as qwindows: it's small, `sirenproof-ui --screenshot` uses it, and so does the
+# start-up check below, which has to work without a screen in CI.
 Invoke-Checked (Join-Path $ucrt 'windeployqt6.exe') @(
     '--release', '--no-translations', '--no-system-d3d-compiler', '--no-compiler-runtime',
+    '--include-plugins', 'qoffscreen',
     '--qmldir', (Join-Path $root 'ui\qml'), '--dir', $stage, (Join-Path $stage 'sirenproof-ui.exe'))
+
+# MSYS2's Qt looks for its QML modules and plugins where MSYS2 keeps them (..\share\qt6 beside its
+# DLLs). In the stage they're next to the programs, and without this file the main window can't load
+# its QML at all.
+Set-Content -Path (Join-Path $stage 'qt.conf') -Encoding ascii -Value "[Paths]`r`nPrefix = .`r`nPlugins = .`r`nQmlImports = qml"
 
 # Every DLL a staged program or library loads that comes from MSYS2 (libstdc++, libgcc, winpthread,
 # and what Qt itself needs), until nothing new turns up. Windows' own DLLs aren't in MSYS2's folder.
@@ -129,6 +138,31 @@ do {
     }
 } while ($added -gt 0)
 Write-Host "Staged $((Get-ChildItem $stage -Recurse -File).Count) files."
+
+# The staged main window has to start with only what's staged: MSYS2 off the PATH, so a missing DLL,
+# plugin or QML module can't be found there by accident. Rendered offscreen, so no screen is needed.
+Step 'Checking the staged main window starts on its own'
+$shot = Join-Path $out 'start-check.png'
+Remove-Item $shot -ErrorAction SilentlyContinue
+$start = New-Object System.Diagnostics.ProcessStartInfo (Join-Path $stage 'sirenproof-ui.exe')
+$start.Arguments = "--pipe \\.\pipe\SirenproofPackageCheck --screenshot `"$shot`""
+$start.UseShellExecute = $false
+$start.RedirectStandardError = $true
+$msysRoot = (Resolve-Path $Msys).Path.TrimEnd('\')
+$start.EnvironmentVariables['PATH'] = ($env:PATH -split ';' | Where-Object {
+        $_ -and -not $_.StartsWith($msysRoot, [StringComparison]::OrdinalIgnoreCase) }) -join ';'
+$start.EnvironmentVariables['QT_FORCE_STDERR_LOGGING'] = '1'
+$window = [System.Diagnostics.Process]::Start($start)
+$errors = $window.StandardError.ReadToEndAsync()
+if (-not $window.WaitForExit(60000)) {
+    $window.Kill()
+    throw "The staged main window didn't finish starting within a minute."
+}
+if ($window.ExitCode -ne 0 -or -not (Test-Path $shot)) {
+    throw "The staged main window doesn't start on its own (exit $($window.ExitCode)):`n$($errors.Result)"
+}
+Remove-Item $shot
+Write-Host 'It starts, with everything it needs from the stage.'
 
 # ---- 3. Sign ----
 $signtool = $null
