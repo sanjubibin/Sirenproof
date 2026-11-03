@@ -23,7 +23,7 @@ virtual machine, where marked **VM**). How to run things safely is in [TESTING.m
 | [1](#1-unlock-challenges-m4) | Unlock challenges | 24 | 0 |
 | [2](#2-ready-made-lists-and-new-rule-m4) | Ready-made lists and New rule, and the usability test | 20 | 0 |
 | [3](#3-installer-m5--vm) | Installer, Defender, SmartScreen (VM) | 18 | 0 |
-| [4](#4-release-workflow-checksums-and-signing-m5) | Release workflow, checksums, signing | 6 | 0 |
+| [4](#4-release-workflow-checksums-and-signing-m5) | Release workflow, checksums, signing | 6 | 1 |
 | [5](#5-docs-and-store-listings-m5) | Docs and store listings | 6 | 0 |
 | [6](#6-earlier-acceptance-tests-m2m4--vm) | Earlier acceptance tests (VM) | 12 | 0 |
 | [7](#7-security-review-follow-ups) | Security review follow-ups (VM) | 14 | 0 |
@@ -166,7 +166,7 @@ or download the **sirenproof-installer** artifact from the CI run. Copy
 
 | # | Try this | Expected | Result | Notes |
 |---|---|---|---|---|
-| 4.1 | After pushing to `main`: the CI run | Both presets green; the `ci-release` job has a **sirenproof-installer** artifact with the setup, the extension zip and `SHA256SUMS.txt` | ☐ | |
+| 4.1 | After pushing to `main`: the CI run | Both presets green; the `ci-release` job has a **sirenproof-installer** artifact with the setup, the extension zip and `SHA256SUMS.txt` | ✅ | 3 Nov 2026, [run 12](https://github.com/sanjubibin/Sirenproof/actions/runs/41605924255) (commit `e00e5b0`): debug, release and extension jobs green; artifact 31.8 MB. Run 11 had failed on two new platform tests, fixed in that commit |
 | 4.2 | `Get-FileHash` on the downloaded setup | Matches its line in `SHA256SUMS.txt` | ☐ | |
 | 4.3 | Open the extension zip | No `"key"` in its `manifest.json`; no `tests` folder | ☐ | |
 | 4.4 | Change only `extension/manifest.json`'s version, run `tools\package.ps1 -SkipBuild` | Stops, saying the two versions differ. Put it back | ☐ | |
