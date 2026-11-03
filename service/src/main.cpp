@@ -4,6 +4,7 @@
 //   console     run in this window, for development
 //   install     register and start the service (administrator)
 //   uninstall   stop and remove it, and clean the hosts file (administrator)
+//   can-stop    whether it could be stopped right now (for the installer)
 
 #include <cstdio>
 #include <string>
@@ -29,6 +30,7 @@ constexpr const char* kUsage = R"(Usage:
                              [--real-browser-policies] [--guard-browsers]
   sirenproof-service install [--enforce | --dry-run] [--allow-any-location]
   sirenproof-service uninstall [--remove-data]
+  sirenproof-service can-stop
   sirenproof-service --version
 
 console   Runs the service in this window until Ctrl+C. Defaults are safe for development:
@@ -38,6 +40,8 @@ console   Runs the service in this window until Ctrl+C. Defaults are safe for de
           unless you pass --guard-browsers.
 install   Needs an administrator prompt, and this exe in a folder like C:\Program Files\Sirenproof.
           --allow-any-location skips that check: only for a test virtual machine.
+uninstall Exits with 3 while a lock holds, and 4 if Sirenproof isn't installed.
+can-stop  Exits with 0 if the service could be stopped (or isn't running or installed), 3 if not.
 )";
 
 HANDLE g_console_stop = nullptr;
@@ -146,9 +150,23 @@ int wmain(int argc, wchar_t* argv[]) {
         return 0;
     }
     if (command == L"uninstall") {
-        if (auto ok = service::uninstall_service(take_flag(args, L"--remove-data")); !ok) return fail(ok.error());
+        if (auto ok = service::uninstall_service(take_flag(args, L"--remove-data")); !ok) {
+            fail(ok.error().message);
+            return ok.error().exit_code;
+        }
         std::printf("Sirenproof is uninstalled and the hosts file is clean.\n");
         return 0;
+    }
+    if (command == L"can-stop") {
+        switch (service::check_stop()) {
+            case service::StopCheck::NotInstalled: std::printf("Sirenproof isn't installed.\n"); return 0;
+            case service::StopCheck::NotRunning: std::printf("The service isn't running.\n"); return 0;
+            case service::StopCheck::Stoppable: std::printf("No lock holds: the service can be stopped.\n"); return 0;
+            case service::StopCheck::Locked:
+                std::printf("The service can't be stopped right now: a lock holds (or it's still starting).\n");
+                break;
+        }
+        return service::kExitLocked;
     }
     std::fputs(kUsage, stderr);
     return 1;

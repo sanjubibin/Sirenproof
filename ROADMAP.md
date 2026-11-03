@@ -41,7 +41,8 @@ or any help, and the budgets are met.
 
 ## Next: M5, the v1.0 release
 
-- [ ] Installer that refuses to uninstall during a lock, and starts the tray at sign-in
+- [x] Installer that refuses to uninstall during a lock, and starts the tray at sign-in
+      (`installer\sirenproof.iss`, made by `tools\package.ps1`; VM test pending)
 - [ ] Code signing
 - [ ] Chrome Web Store and Edge Add-ons listings
 - [ ] Testing against Microsoft Defender

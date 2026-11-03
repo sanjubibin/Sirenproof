@@ -28,6 +28,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: msys2/setup-msys2@v2
+        id: msys2
         with:
           msystem: UCRT64
           update: true
@@ -57,6 +58,25 @@ jobs:
 
       - name: Load the main window offscreen
         run: ./build/${{ matrix.preset }}/bin/sirenproof-ui.exe --pipe '\\.\pipe\SirenproofCiNone' --screenshot ui-now.png
+
+      # The unsigned installer, from the build above.
+      - name: Package the installer
+        if: matrix.preset == 'ci-release'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+          ./tools/package.ps1 -Preset ci-release -SkipBuild -Msys '${{ steps.msys2.outputs.msys2-location }}'
+
+      - name: Keep the installer
+        if: matrix.preset == 'ci-release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sirenproof-installer
+          path: |
+            build/package/*.exe
+            build/package/*.zip
+            build/package/SHA256SUMS.txt
+          if-no-files-found: error
 
   extension:
     name: extension

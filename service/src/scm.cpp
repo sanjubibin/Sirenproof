@@ -176,30 +176,45 @@ std::expected<void, std::string> install_service(bool enforce, bool allow_any_lo
     return {};
 }
 
-std::expected<void, std::string> uninstall_service(bool remove_data) {
+StopCheck check_stop() {
+    ScHandle scm(OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT));
+    if (!scm) return StopCheck::Locked;  // can't tell, so assume the safe answer
+    ScHandle service(OpenServiceW(scm.get(), kServiceName, SERVICE_QUERY_STATUS));
+    if (!service) return GetLastError() == ERROR_SERVICE_DOES_NOT_EXIST ? StopCheck::NotInstalled : StopCheck::Locked;
+    SERVICE_STATUS status{};
+    if (!QueryServiceStatus(service.get(), &status)) return StopCheck::Locked;
+    if (status.dwCurrentState == SERVICE_STOPPED) return StopCheck::NotRunning;
+    // Starting or stopping: it can't take Stop right now, so say no; asking again a moment later works.
+    if (status.dwCurrentState != SERVICE_RUNNING) return StopCheck::Locked;
+    return (status.dwControlsAccepted & SERVICE_ACCEPT_STOP) ? StopCheck::Stoppable : StopCheck::Locked;
+}
+
+std::expected<void, ServiceError> uninstall_service(bool remove_data) {
+    const auto locked = [] {
+        return std::unexpected(ServiceError{kExitLocked, "a lock is active; Sirenproof can be removed once it ends"});
+    };
+
     // Ask the running service first, and only believe the real one.
     const auto reply = platform::pipe_call(platform::kServicePipeName, R"({"v":1,"op":"service.can_stop"})",
                                            {std::chrono::seconds{5}, platform::executable_path()});
     if (reply) {
         const core::Json answer = core::Json::parse(*reply, nullptr, false);
-        if (!answer.is_discarded() && answer.value("ok", false) && !answer["result"].value("can_stop", true)) {
-            return std::unexpected("a lock is active; Sirenproof can be removed once it ends");
-        }
+        if (!answer.is_discarded() && answer.value("ok", false) && !answer["result"].value("can_stop", true)) return locked();
     }
 
     ScHandle scm(OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT));
-    if (!scm) return std::unexpected("open an administrator command prompt first: " + platform::last_error_text());
+    if (!scm) return std::unexpected(ServiceError{1, "open an administrator command prompt first: " + platform::last_error_text()});
     ScHandle service(OpenServiceW(scm.get(), kServiceName, SERVICE_STOP | SERVICE_QUERY_STATUS | DELETE));
     if (!service) {
-        if (GetLastError() == ERROR_SERVICE_DOES_NOT_EXIST) return std::unexpected("Sirenproof isn't installed");
-        return std::unexpected("can't open the service: " + platform::last_error_text());
+        if (GetLastError() == ERROR_SERVICE_DOES_NOT_EXIST) return std::unexpected(ServiceError{kExitNotInstalled, "Sirenproof isn't installed"});
+        return std::unexpected(ServiceError{1, "can't open the service: " + platform::last_error_text()});
     }
 
     SERVICE_STATUS status{};
     if (!ControlService(service.get(), SERVICE_CONTROL_STOP, &status)) {
         const DWORD error = GetLastError();
-        if (error == ERROR_INVALID_SERVICE_CONTROL) return std::unexpected("a lock is active; try again once it ends");
-        if (error != ERROR_SERVICE_NOT_ACTIVE) return std::unexpected("can't stop the service: " + platform::error_text(error));
+        if (error == ERROR_INVALID_SERVICE_CONTROL) return locked();
+        if (error != ERROR_SERVICE_NOT_ACTIVE) return std::unexpected(ServiceError{1, "can't stop the service: " + platform::error_text(error)});
     }
     for (int i = 0; i < 200 && QueryServiceStatus(service.get(), &status) && status.dwCurrentState != SERVICE_STOPPED; ++i) {
         Sleep(100);
@@ -213,7 +228,7 @@ std::expected<void, std::string> uninstall_service(bool remove_data) {
     if (auto restored = policies.set(false); !restored) log.warn("couldn't restore browser policies: " + restored.error());
     platform::unregister_native_host(HKEY_LOCAL_MACHINE);
 
-    if (!DeleteService(service.get())) return std::unexpected("can't remove the service: " + platform::last_error_text());
+    if (!DeleteService(service.get())) return std::unexpected(ServiceError{1, "can't remove the service: " + platform::last_error_text()});
     if (remove_data) {
         std::error_code ignored;
         fs::remove_all(platform::program_data_dir(), ignored);

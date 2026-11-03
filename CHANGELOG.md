@@ -11,6 +11,16 @@ milestone, newest first. What comes next is in the [roadmap](ROADMAP.md).
 
 ### Added
 
+- **Release (M5, in progress)**
+  - An installer (Inno Setup, `installer\sirenproof.iss`). It installs into Program Files only, starts
+    the service, and starts the tray at sign-in for everyone on the PC. It refuses to uninstall, or to
+    update, while a lock holds, and asks whether to keep your rules when you uninstall.
+  - `sirenproof-service can-stop` says whether the service could be stopped right now (exit code 3 while
+    a lock holds), and `uninstall` exits with 3 during a lock and 4 if there's nothing to remove.
+  - `tools\package.ps1` builds a release: it stages the programs with Qt and the compiler's runtime,
+    optionally signs them, compiles the installer, zips the extension for the stores, and writes
+    `SHA256SUMS.txt`. CI does the same on every push and keeps the installer as an artifact.
+
 - **Interface (M4, in progress)**
   - The "deep-water HUD" design, approved as a clickable prototype before any interface code.
   - `sirenproof-ui.exe`, the main window (Qt Quick). It runs only while it's open:

@@ -116,6 +116,35 @@ Console service and main window as in section 1. Go to **Rules**.
 | 2.19 | Keyboard only: Tab through the New rule card | Every control is reachable and shows a focus ring | ☐ | |
 | 2.20 | Usability: someone who has never seen Sirenproof sets up "block Reddit on weekday evenings" from **Rules**, without help | Done within a few minutes | ☐ | This is the M4 usability test (ROADMAP); do it with two or three people and note where they hesitate |
 
+## 3. Installer (M5) — **VM**
+
+The installer changes the whole PC, so it belongs in the VM (TESTING.md, *Acceptance test*), starting
+from the **clean** snapshot each time. Make it on the test PC with
+`powershell -ExecutionPolicy Bypass -File tools\package.ps1` (needs [Inno Setup 6.3+](https://jrsoftware.org/isdl.php)),
+or download the **sirenproof-installer** artifact from the CI run. Copy
+`build\package\Sirenproof-<version>-setup.exe` into the VM.
+
+| # | Try this | Expected | Result | Notes |
+|---|---|---|---|---|
+| 3.1 | `tools\package.ps1` on the test PC | Ends with "Done" and lists two SHA-256 sums; `build\package\stage` has the five programs, Qt's DLLs and `qml\` folder, and `libstdc++-6.dll` | ☐ | Also check the CI run's *Package the installer* step went green |
+| 3.2 | `build\package\stage\sirenproof-ui.exe` on a PC **without** MSYS2 (or with it off the PATH) | The window opens | ☐ | Proves the staging found every DLL. The VM is a good place |
+| 3.3 | Run the setup in the VM | Asks for administrator rights, shows the GPL, no folder page; installs to `C:\Program Files\Sirenproof` | ☐ | |
+| 3.4 | Finish with "Start Sirenproof now" ticked | The tray icon appears; `sc query Sirenproof` is RUNNING | ☐ | |
+| 3.5 | Start menu → **Sirenproof** | The main window opens and is connected | ☐ | |
+| 3.6 | Sign out and in again (and sign in as a second user, if there is one) | The tray starts by itself | ☐ | |
+| 3.7 | `"C:\Program Files\Sirenproof\sirenproof-service.exe" can-stop` (no lock) | Exit 0, "No lock holds" | ☐ | `echo %errorlevel%` |
+| 3.8 | Start a 25-minute lock in the window, then run `can-stop` again | Exit 3 | ☐ | |
+| 3.9 | During the lock: Settings → Apps → Sirenproof → Uninstall | Refused with the "a lock is active" message; nothing is removed | ☐ | |
+| 3.10 | During the lock: run the same setup again (an update) | Refused on the "Preparing to install" page with the same message | ☐ | |
+| 3.11 | During the lock: `"C:\Program Files\Sirenproof\unins000.exe" /SILENT` | Doesn't uninstall | ☐ | |
+| 3.12 | After the lock ends: run the setup again | Updates; the service is running again and your rules are still there | ☐ | |
+| 3.13 | Uninstall, answer **No** to deleting your rules | Removed; `sc query Sirenproof` says it doesn't exist; the hosts file has no Sirenproof section; the tray icon is gone; `C:\ProgramData\Sirenproof` is still there | ☐ | |
+| 3.14 | Install again | Your rules from before are back | ☐ | |
+| 3.15 | Uninstall, answer **Yes** | As 3.13, and `C:\ProgramData\Sirenproof` is gone too | ☐ | |
+| 3.16 | After uninstalling: `C:\Program Files\Sirenproof`, the Start menu, `HKLM\Software\Microsoft\Windows\CurrentVersion\Run` | All gone | ☐ | |
+| 3.17 | Microsoft Defender: full scan of `C:\Program Files\Sirenproof`, and watch **Protection history** during 3.4–3.12 | Nothing flagged; if the hosts-file edits are flagged, note exactly what | ☐ | This is the M5 "testing against Defender" item |
+| 3.18 | SmartScreen on the downloaded (unsigned) setup | Note what it says | ☐ | Expected until it's signed (section 4) |
+
 ## Problems found
 
 | # | Test | What happened | Fixed in |
