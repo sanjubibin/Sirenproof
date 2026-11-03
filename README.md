@@ -19,7 +19,9 @@ lecturing you.
 
 ## Status
 
-**Early development. Nothing to install yet.**
+**Getting ready for v1.0.** There's no release yet. Every build on `main` makes an unsigned installer
+(the **sirenproof-installer** artifact of a [CI run](https://github.com/sanjubibin/Sirenproof/actions/workflows/ci.yml)),
+for testing in a virtual machine. How to use it is in the [user guide](docs/USER-GUIDE.md).
 
 - **M0 (foundation):** done. Build, tests and CI are in place.
 - **M1 (rule engine):** done. It covers rules for sites, pages and apps; schedules; Nudge, Block and Lock;
@@ -37,11 +39,16 @@ lecturing you.
   - The browser part of the virtual-machine test is still to run.
 - **M4 (interface):** built, and every speed and memory budget is measured and met. A usability test is
   still to run. It has:
-  - the main window's Now, Rules and Start a lock screens, with hold-to-lock, unlock early, a live
-    rule tester, a schedule painter and a command palette (Ctrl+K);
+  - the main window's Now, Rules and Start a lock screens, with hold-to-lock, the typing and
+    friend-code ways to end a lock early, ready-made lists, a New rule card for scheduled blocks, a
+    live rule tester, a schedule painter and a command palette (Ctrl+K);
   - the "Lock down this PC" setup, which guides you to a standard account for everyday use;
   - the tray icon, which shows whether a lock holds, opens the window and offers a break;
   - the pause for programs on a Nudge rule, drawn over the screen by the tray.
+- **M5 (v1.0 release):** in progress. The installer (it refuses to uninstall during a lock), the
+  packaging and release workflow with checksums, the user guide, the privacy policy and the store
+  listing text are done. Still to come: code signing, the store submissions, and the tests on a
+  virtual machine, tracked in [docs/TEST-TRACKER.md](docs/TEST-TRACKER.md).
 
 See the [roadmap](ROADMAP.md) for what's next and the [changelog](CHANGELOG.md) for what has changed.
 The reasoning behind both is in the [plan](docs/PLAN.md#8-milestones).
@@ -143,14 +150,14 @@ cli/       sirenproof.exe: the command line
 ui/        sirenproof-ui.exe: the main window (Qt Quick); runs only while it's open
 tray/      sirenproof-tray.exe: the tray icon (plain Win32)
 tests/     Unit tests (core) and integration tests (platform)
-tools/     For developers: dev-reset.ps1 undoes everything Sirenproof changed; measure-budgets.ps1
-           checks the interface budgets
+installer/ The Inno Setup script for the installer
+tools/     For developers: package.ps1 builds a release (installer, extension zip, checksums);
+           dev-reset.ps1 undoes everything Sirenproof changed; measure-budgets.ps1 checks the
+           interface budgets
 examples/  An example rules file
 cmake/     Warning and hardening flags
-docs/      Research, plan and testing guide
+docs/      User guide, privacy policy, research, plan, testing guide and test tracker, releasing
 ```
-
-The installer arrives in M5 (see [the plan](docs/PLAN.md#7-repository-layout)).
 
 ## Contributing
 

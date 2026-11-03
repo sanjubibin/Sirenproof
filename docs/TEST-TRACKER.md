@@ -15,6 +15,21 @@ virtual machine, where marked **VM**). How to run things safely is in [TESTING.m
 | ❌ | Fail (see Problems found) |
 | ⏸ | Blocked (say why) |
 
+## Where things stand
+
+| Section | What | Checks | Done |
+|---|---|---|---|
+| [0](#0-set-up-the-test-pc) | Set up the test PC | 5 | 0 |
+| [1](#1-unlock-challenges-m4) | Unlock challenges | 24 | 0 |
+| [2](#2-ready-made-lists-and-new-rule-m4) | Ready-made lists and New rule, and the usability test | 20 | 0 |
+| [3](#3-installer-m5--vm) | Installer, Defender, SmartScreen (VM) | 18 | 0 |
+| [4](#4-release-workflow-checksums-and-signing-m5) | Release workflow, checksums, signing | 6 | 0 |
+| [5](#5-docs-and-store-listings-m5) | Docs and store listings | 6 | 0 |
+| [6](#6-earlier-acceptance-tests-m2m4--vm) | Earlier acceptance tests (VM) | 12 | 0 |
+| [7](#7-security-review-follow-ups) | Security review follow-ups (VM) | 14 | 0 |
+
+Update **Done** as you go, so this table shows the state at a glance.
+
 ## 0. Set up the test PC
 
 | # | Step | Result | Notes |
@@ -45,6 +60,8 @@ build\debug\bin\sirenproof.exe block reddit.com --for 2m --lock --unlock type:20
 | 1.4 | Type one wrong character | That character is marked amber in the text, the bar and box turn amber, "Character 5 doesn't match" | ☐ | |
 | 1.5 | Backspace it and go on | Back to normal | ☐ | |
 | 1.6 | Ctrl+V, Shift+Insert, right-click → Paste, and dragging text in from Notepad | Nothing is added; a message says only typing counts | ☐ | |
+| 1.6b | Type some characters, select them all, then right-click → Paste text of the same length | Undone, with the same message | ☐ | |
+| 1.6c | Select one character and type over it | Accepted (one character in) | ☐ | |
 | 1.7 | Type in capitals, with or without the dashes | Still counts as right | ☐ | |
 | 1.8 | Press Enter before it's all typed | Nothing happens, no new line | ☐ | |
 | 1.9 | Close the window part-way, open it again, **Show the text to type** | The same text as before (what you typed is gone) | ☐ | |
@@ -166,6 +183,62 @@ or download the **sirenproof-installer** artifact from the CI run. Copy
 | 5.4 | Chrome Web Store: submit the zip with the text in [STORE-LISTING.md](STORE-LISTING.md) | Accepted; note the store's id | ⏸ | Needs the $5 developer account. Then add the id to `kExtensionIds` (RELEASING.md) |
 | 5.5 | Edge Add-ons: the same | Accepted; note the id | ⏸ | Needs a Partner Center account |
 | 5.6 | After 5.4/5.5 and a new release: install the extension from each store | It reaches the app (a blocked Short shows the block page) | ⏸ | |
+
+## 6. Earlier acceptance tests (M2–M4) — **VM**
+
+These were written before this tracker; the steps and expected results are the numbered rows in
+[TESTING.md, *Acceptance test in a virtual machine*](TESTING.md#acceptance-test-in-a-virtual-machine-milestone-m2).
+Now that there's an installer, install with it (section 3) instead of copying files by hand.
+
+| TESTING.md rows | What | Result | Notes |
+|---|---|---|---|
+| 1–2 | YouTube and a "game" are blocked during a lock | ☐ | |
+| 3 | Hosts file edits are repaired within a second | ☐ | |
+| 4–5 | The service can't be stopped, and comes back when killed | ☐ | |
+| 6–7 | Clock and time zone changes don't end the lock | ☐ | |
+| 8 | The lock survives a restart | ☐ | |
+| 9–11 | Uninstalling is refused during the lock, and clean after | ☐ | Do it through the installer's uninstaller too (3.9, 3.13) |
+| 12–13 | The extension blocks Shorts and the feed while videos play | ☐ | |
+| 14 | No Incognito or InPrivate during a lock | ☐ | |
+| 15–16 | A browser without the extension is closed after the grace period | ☐ | |
+| 17 | Browser policies are back as they were after uninstalling | ☐ | |
+| 18–24 | Lock down this PC | ☐ | |
+| — | The interface budgets on the VM: `tools\measure-budgets.ps1` (TESTING.md, *Interface budgets*) | ☐ | The figures in TESTING.md are from a fast laptop; a slower PC is worth a row |
+
+## 7. Security review follow-ups
+
+From [THREAT-MODEL.md](THREAT-MODEL.md). The unit and platform tests for these run in 0.3. The rows
+below need the installed service, so they're for the **VM** (with the installer, section 3).
+
+| # | Try this | Expected | Result | Notes |
+|---|---|---|---|---|
+| 7.1 | S1: as a standard user, `sirenproof check \\127.0.0.1\c$\Windows\notepad.exe` | Answers at once ("allow"); `sirenproof status` responds normally straight after | ☐ | Before the fix the service read the file over SMB as SYSTEM |
+| 7.2 | S1: with a rule on `app:notepad.exe`, run Notepad from `\\127.0.0.1\c$\Windows\notepad.exe` | Still closed (matched by name) | ☐ | |
+| 7.3 | S2: copy a "game" to `C:\Games\sirenproof.exe`, block `app:C:\Games\`, start it | Closed | ☐ | |
+| 7.4 | S2: during any app rule, Sirenproof's own window and tray keep running | Never closed | ☐ | |
+| 7.5 | S3: `sirenproof-service.exe console` on the VM (service installed) | Refuses: "Sirenproof is installed on this PC, so its pipe belongs to the service…" | ☐ | |
+| 7.6 | S3: as a **standard user** (after Lock down this PC), the window, tray and `sirenproof status` | All connect to the service | ☐ | Important: the clients now check the service's process id, which standard users can read; before, they checked its image path, which they possibly couldn't |
+| 7.7 | S4: start a 25-minute lock, shut the VM down, set the VM's clock (firmware/host time) a day ahead, start it | The lock still holds, with about the time it had left | ☐ | VirtualBox: `VBoxManage modifyvm <vm> --biossystemtimeoffset 86400000`; set it back to 0 afterwards |
+| 7.8 | S4: start a 25-minute lock, shut down for 10 real minutes, start again | Ends at the original time (the time off counted) | ☐ | |
+| 7.9 | S5: during a lock, as administrator: `taskkill /f /im sirenproof-service.exe` and straight away `sirenproof-service uninstall` | Refused (exit 3), the service is running again | ☐ | Try the same with the uninstaller from Settings |
+| 7.10 | S5: with no lock, stop the service (`sc stop Sirenproof`), then uninstall | Removed cleanly | ☐ | The uninstall starts it, asks, and stops it again |
+| 7.11 | S6: send a deeply nested message to the pipe (PowerShell below) | The service answers with an error and keeps running | ☐ | See the snippet after this table |
+| 7.12 | S10: `sirenproof block reddit.com --for 2m --lock --unlock friend` twice | A different code each time | ☐ | That the service ignores a client's own `salt`/`hash` is in `protocol.cpp`; nothing more to run |
+| 7.13 | S13: `Get-ChildItem "C:\Program Files\Sirenproof" -Filter *.dll` | No DLL with the name of one in `C:\Windows\System32` (compare the lists) | ☐ | |
+| 7.14 | Defender and SmartScreen notes from 3.17–3.18 | | ☐ | |
+
+The nesting check (7.11), from an administrator PowerShell on the VM (administrators may open the pipe
+with any rights; this asks for read and write):
+
+```powershell
+$pipe = New-Object System.IO.Pipes.NamedPipeClientStream('.', 'Sirenproof.v1', 'InOut')
+$pipe.Connect(2000); $pipe.ReadMode = 'Message'
+$bytes = [Text.Encoding]::UTF8.GetBytes('{"v":1,"op":"status","args":' + ('[' * 30000) + '}')
+$pipe.Write($bytes, 0, $bytes.Length)
+$buffer = New-Object byte[] 65536; $n = $pipe.Read($buffer, 0, $buffer.Length)
+[Text.Encoding]::UTF8.GetString($buffer, 0, $n)   # {"ok":false,"error":"the message nests too deeply"}
+$pipe.Dispose(); sc.exe query Sirenproof         # still RUNNING
+```
 
 ## Problems found
 

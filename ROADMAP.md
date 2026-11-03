@@ -3,7 +3,8 @@
 Where Sirenproof stands and what comes next. The reasoning behind each step is in the
 [plan](docs/PLAN.md); what has already changed is in the [changelog](CHANGELOG.md).
 
-*Last updated: 3 November 2026 (M4 built and measured).*
+*Last updated: 3 November 2026 (M4 built; M5's code and docs done, waiting on tests, signing and the
+stores). Everything still to try by hand is in the [test tracker](docs/TEST-TRACKER.md).*
 
 ## Milestones
 
@@ -14,7 +15,7 @@ Where Sirenproof stands and what comes next. The reasoning behind each step is i
 | **M2** Service and enforcement | Windows service, secure pipe, signed rules, hosts blocking, closing programs | Built and tested; VM acceptance test pending |
 | **M3** Browsers | Chrome/Edge extension, relay, block and pause pages, browser policies during locks | Built and tested; VM acceptance test pending |
 | **M4** Interface | Main window, tray, pause overlay, "Lock down this PC" setup | Built; budgets met; usability test pending |
-| **M5** v1.0 release | Signed installer, store listings, security review | Planned |
+| **M5** v1.0 release | Signed installer, store listings, security review | In progress: installer, packaging, docs and security review done; signing, stores and VM tests to go |
 
 ## Now: M4 interface
 
@@ -39,7 +40,7 @@ Where Sirenproof stands and what comes next. The reasoning behind each step is i
 **Done when** two or three non-technical people can set up a scheduled block without the command line
 or any help, and the budgets are met.
 
-## Next: M5, the v1.0 release
+## Also now: M5, the v1.0 release
 
 - [x] Installer that refuses to uninstall during a lock, and starts the tray at sign-in
       (`installer\sirenproof.iss`, made by `tools\package.ps1`; VM test pending)
@@ -47,8 +48,9 @@ or any help, and the budgets are met.
       needs a certificate (SignPath Foundation application)
 - [ ] Chrome Web Store and Edge Add-ons listings: the zip, text and privacy answers are ready
       ([STORE-LISTING.md](docs/STORE-LISTING.md)); submitting needs the store accounts
-- [ ] Testing against Microsoft Defender
-- [ ] Threat-model review
+- [ ] Testing against Microsoft Defender (steps in the [test tracker](docs/TEST-TRACKER.md), 3.17)
+- [x] Threat-model review ([THREAT-MODEL.md](docs/THREAT-MODEL.md)): one high and five medium findings
+      fixed, the rest documented; VM checks in the test tracker
 - [x] User docs and release checksums ([USER-GUIDE.md](docs/USER-GUIDE.md), [PRIVACY.md](docs/PRIVACY.md),
       `SHA256SUMS.txt` from `tools\package.ps1`)
 
@@ -57,7 +59,8 @@ virtual machine.
 
 ## Waiting on hands-on testing
 
-These need a Windows virtual machine; the steps are in [docs/TESTING.md](docs/TESTING.md).
+These need a Windows virtual machine; the steps are in [docs/TESTING.md](docs/TESTING.md), and the
+results go in the [test tracker](docs/TEST-TRACKER.md).
 
 - [ ] M2 acceptance test: a lock survives a hosts edit, killing the service, a clock change and a reboot
 - [ ] M3 browser test: Shorts blocked while videos play, no private windows during a lock, a disabled
