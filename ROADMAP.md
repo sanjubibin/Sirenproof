@@ -26,7 +26,7 @@ Where Sirenproof stands and what comes next. The reasoning behind each step is i
 - [x] Schedule painter: drag across the week to set when a rule applies
 - [x] Command palette (Ctrl+K): type `lock youtube 2h`, `block reddit 25m` or `check twitch.tv`
 - [ ] Ready-made lists in the Rules screen
-- [ ] The typing and friend-code unlock challenges, polished
+- [x] The typing and friend-code unlock challenges, polished
 - [x] "Lock down this PC" setup: a standard account for daily use ([plan §3.8](docs/PLAN.md#38-lock-down-this-pc))
 - [x] Pause overlay for programs on a Nudge rule (Direct2D)
 - [x] Events from the service, so the tray no longer asks every 15 seconds (the budget asks for no timers

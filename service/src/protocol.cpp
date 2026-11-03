@@ -170,13 +170,27 @@ std::string Host::handle(std::string_view request, const platform::PipeClient& c
                 if (!engine_.lock_holds(rule, t)) continue;
                 static constexpr const char* kMethods[] = {"none", "wait", "type", "friend"};
                 const auto* span = std::get_if<core::Span>(&rule.when);
-                locked.push_back({{"rule", rule.id},
-                                  {"name", rule.name},
-                                  {"goal", rule.goal},
-                                  {"from", span ? Json(core::format_time(span->start)) : Json(nullptr)},
-                                  {"until", optional_time(engine_.period_end(rule, t))},
-                                  {"unlock", kMethods[static_cast<int>(rule.unlock.kind)]},
-                                  {"breaks_allowed", rule.breaks_allowed}});
+                Json entry{{"rule", rule.id},
+                           {"name", rule.name},
+                           {"goal", rule.goal},
+                           {"from", span ? Json(core::format_time(span->start)) : Json(nullptr)},
+                           {"until", optional_time(engine_.period_end(rule, t))},
+                           {"unlock", kMethods[static_cast<int>(rule.unlock.kind)]},
+                           {"breaks_allowed", rule.breaks_allowed}};
+                // What the chosen unlock method needs to explain itself.
+                switch (rule.unlock.kind) {
+                    case core::UnlockMethod::Kind::Wait: entry["wait_minutes"] = rule.unlock.wait.count(); break;
+                    case core::UnlockMethod::Kind::Type: entry["type_length"] = rule.unlock.type_length; break;
+                    case core::UnlockMethod::Kind::Friend: {
+                        const core::FriendStatus friend_status = engine_.friend_status(rule.id, t);
+                        entry["tries_left"] = friend_status.tries_left;
+                        entry["next_wait_minutes"] = friend_status.next_wait.count();
+                        entry["retry_after"] = optional_time(friend_status.retry_after);
+                        break;
+                    }
+                    case core::UnlockMethod::Kind::None: break;
+                }
+                locked.push_back(std::move(entry));
             }
             Json hosts = Json::array();
             for (const auto& d : plan.hosts) hosts.push_back(d.str());

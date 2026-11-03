@@ -1,6 +1,7 @@
 # Testing Sirenproof
 
-Three levels of testing, from safest to most real.
+Three levels of testing, from safest to most real. What still has to be tried by hand, and how each
+try went, is kept in the [test tracker](TEST-TRACKER.md).
 
 | Level | What it covers | Where it runs |
 |---|---|---|

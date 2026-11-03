@@ -330,17 +330,37 @@ Flickable {
         contentItem: ColumnLayout {
             spacing: 14
             Text { text: "YOUR FRIEND CODE"; color: Theme.accent; font.pixelSize: 12; font.weight: Font.DemiBold; font.letterSpacing: 1.6 }
-            Text { text: friendPopup.code; color: Theme.text; font.family: "Cascadia Mono"; font.pixelSize: 28 }
             Text {
-                Layout.maximumWidth: 420
-                text: "Give it to someone you trust now. It's shown only this once and can't be recovered."
+                // Upper case, groups spaced apart: easiest to read out over the phone or copy onto paper.
+                text: friendPopup.code.toUpperCase().split("-").join("  ")
+                color: Theme.text
+                font.family: "Cascadia Mono"; font.pixelSize: 30; font.letterSpacing: 2
+                Accessible.role: Accessible.StaticText
+                Accessible.name: "Friend code: " + friendPopup.code.split("").join(" ")
+            }
+            Text {
+                Layout.maximumWidth: 440
+                text: "Give it to someone you trust now: read it out, or write it down for them. It's shown only this once and can't be recovered. Don't keep a copy on this PC."
                 color: Theme.muted
                 wrapMode: Text.Wrap
             }
+            CheckBox {
+                id: handedOver
+                text: "Someone else has the code now"
+                Accessible.name: text
+                contentItem: Text {
+                    leftPadding: handedOver.indicator.width + handedOver.spacing
+                    text: handedOver.text
+                    color: Theme.text
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
             SirenButton {
                 kind: "primary"
-                text: "I've handed it over"
-                onClicked: { friendPopup.close(); friendPopup.code = ""; root.locked() }
+                text: "Done"  // the lock already holds; this only puts the code away
+                // Closing this loses the code for good, so it takes a deliberate tick first.
+                enabled: handedOver.checked
+                onClicked: { friendPopup.close(); friendPopup.code = ""; handedOver.checked = false; root.locked() }
             }
         }
     }

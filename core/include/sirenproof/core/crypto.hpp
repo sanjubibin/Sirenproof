@@ -39,7 +39,7 @@ public:
 // so nothing is easy to misread). With `grouped`, a '-' goes between groups of five.
 std::string random_code(RandomSource& random, std::size_t length, bool grouped);
 
-// Canonical form of a typed code: lower-case, separators and spaces removed, and the look-alikes
+// Canonical form of a typed code: lower-case, separators, spaces and line breaks removed, and the look-alikes
 // mapped back (o -> 0, i/l -> 1). Returns nullopt if anything else is outside the alphabet.
 std::optional<std::string> normalise_code(std::string_view typed);
 

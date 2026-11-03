@@ -21,6 +21,7 @@ qt_add_qml_module(sirenproof_ui
     QML_FILES
         qml/Card.qml
         qml/CommandPalette.qml
+        qml/FriendCodeEntry.qml
         qml/LockdownScreen.qml
         qml/LockScreen.qml
         qml/Main.qml
@@ -29,7 +30,8 @@ qt_add_qml_module(sirenproof_ui
         qml/RulesScreen.qml
         qml/ScheduleGrid.qml
         qml/SirenButton.qml
-        qml/Theme.qml)
+        qml/Theme.qml
+        qml/TypeChallenge.qml)
 
 target_link_libraries(sirenproof_ui PRIVATE Qt6::Quick Qt6::QuickControls2 Sirenproof::platform shell32)
 

@@ -35,6 +35,16 @@ milestone, newest first. What comes next is in the [roadmap](ROADMAP.md).
       live and opens Windows' own settings for each change; Sirenproof never changes an account itself.
       It won't go on until a second administrator exists, and warns if that one disappears. The Now
       screen offers it while a lock holds and your account is an administrator.
+    - **Unlocking early, polished:**
+      - *Type it out:* the text is shown in groups of five and lights up as you type it right, with the
+        first wrong character marked and a progress bar. Only typing counts: besides Ctrl+V, anything that
+        drops in more than a character at once (the context menu, dragging text in) is undone. Enter
+        unlocks once it all matches, and the same text comes back if you close the window part-way.
+      - *Friend code:* the field adds the dashes and maps look-alike letters as you type, says how many
+        tries are left before a wait and how long that wait will be, and counts the wait down.
+      - When the code is shown at the start of a lock, it's in large, spaced capitals, and closing it
+        takes a tick that someone else has it, since it can't be shown again.
+      - The wait method shows the lock's real wait instead of always "30 minutes".
     - `--palette <text>` opens the palette with that text, and `--run <command>` does a command at start.
     - Reconnects to the service by itself, and honours Windows' "show animations" setting.
   - `sirenproof-tray.exe`, the tray icon (plain Win32, about 2 MB of private memory):
@@ -111,3 +121,7 @@ milestone, newest first. What comes next is in the [roadmap](ROADMAP.md).
   `WeeklySchedule::from_minutes` writes any set of minutes back as the fewest readable windows.
 - The service's status now describes each lock in full: its rule, name, goal, start, unlock method and
   whether breaks are allowed. The main window uses this.
+- Each lock in the status also says what its unlock method needs: the wait, the length of the text to
+  type, or the friend-code tries left, the next wait and when guessing may resume (`friend_status`).
+- Asking for the text to type again gives the same text until it's typed (or the lock is tightened to a
+  longer one), and typed codes may run over several lines.

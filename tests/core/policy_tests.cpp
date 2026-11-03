@@ -304,6 +304,59 @@ TEST_CASE_METHOD(Fixture, "Unlocking by typing needs the exact text", "[policy][
     CHECK(web("youtube.com") == Action::Allow);
 }
 
+TEST_CASE_METHOD(Fixture, "The text to type stays the same until it's typed", "[policy][unlock]") {
+    Rule exam = session("exam", {"youtube.com"}, Strength::Lock, kMonday9, Hours{4});
+    exam.unlock = {UnlockMethod::Kind::Type, Minutes{0}, 30, "", ""};
+    add(exam);
+
+    const auto first = engine.begin_type_unlock("exam", kMonday9, random);
+    REQUIRE(first.has_value());
+    CHECK(engine.begin_type_unlock("exam", kMonday9 + Minutes{5}, random) == first);  // the window was reopened
+    CHECK(state.type_challenges.size() == 1);
+
+    // Typed across lines, as a long text often is, it still counts.
+    std::string wrapped = *first;
+    wrapped.insert(17, "\r\n");
+    CHECK(engine.finish_type_unlock("exam", wrapped, kMonday9 + Minutes{5}).ok);
+}
+
+TEST_CASE_METHOD(Fixture, "A tightened lock deals a longer text to type", "[policy][unlock]") {
+    Rule exam = session("exam", {"youtube.com"}, Strength::Lock, kMonday9, Hours{4});
+    exam.unlock = {UnlockMethod::Kind::Type, Minutes{0}, 30, "", ""};
+    add(exam);
+    const auto first = engine.begin_type_unlock("exam", kMonday9, random);
+    REQUIRE(first.has_value());
+
+    exam.unlock.type_length = 60;
+    REQUIRE(engine.update_rule(exam, kMonday9, random).outcome == Outcome::Applied);
+    const auto second = engine.begin_type_unlock("exam", kMonday9, random);
+    REQUIRE(second.has_value());
+    CHECK(second->size() == 71);  // 60 characters in groups of five
+    CHECK_FALSE(engine.finish_type_unlock("exam", *first, kMonday9).ok);
+}
+
+TEST_CASE_METHOD(Fixture, "friend_status counts the tries left and the wait to come", "[policy][unlock]") {
+    Rule exam = session("exam", {"youtube.com"}, Strength::Lock, kMonday9, Hours{4});
+    exam.unlock.kind = UnlockMethod::Kind::Friend;
+    add(exam);
+
+    FriendStatus status = engine.friend_status("exam", kMonday9);
+    CHECK(status.tries_left == 5);
+    CHECK(status.next_wait == Minutes{10});
+    CHECK_FALSE(status.retry_after.has_value());
+
+    for (int i = 0; i < 3; ++i) engine.enter_friend_code("exam", "00000-00000-00000", kMonday9);
+    CHECK(engine.friend_status("exam", kMonday9).tries_left == 2);
+
+    for (int i = 0; i < 2; ++i) engine.enter_friend_code("exam", "00000-00000-00000", kMonday9);
+    status = engine.friend_status("exam", kMonday9 + Minutes{1});
+    CHECK(status.retry_after == kMonday9 + Minutes{10});
+    CHECK(status.tries_left == 5);
+    CHECK(status.next_wait == Minutes{20});  // the next round waits longer
+
+    CHECK_FALSE(engine.friend_status("exam", kMonday9 + Minutes{10}).retry_after.has_value());
+}
+
 TEST_CASE_METHOD(Fixture, "A friend's code unlocks; wrong guesses slow down further guesses", "[policy][unlock]") {
     Rule exam = session("exam", {"youtube.com"}, Strength::Lock, kMonday9, Hours{4});
     exam.unlock.kind = UnlockMethod::Kind::Friend;

@@ -517,6 +517,14 @@ std::optional<std::string> Engine::begin_type_unlock(std::string_view rule_id, T
     const Rule* rule = find_rule(rule_id);
     if (!rule || !lock_holds(*rule, now) || rule->unlock.kind != UnlockMethod::Kind::Type) return std::nullopt;
 
+    // The same text until it's typed, so closing the window doesn't deal a new one; but a fresh one if the
+    // lock has since been tightened to a longer text.
+    const auto existing = std::ranges::find(state_.type_challenges, rule_id, &TypeChallenge::rule_id);
+    if (existing != state_.type_challenges.end()) {
+        const auto code = normalise_code(existing->text);
+        if (code && code->size() == static_cast<std::size_t>(rule->unlock.type_length)) return existing->text;
+    }
+
     std::string text = random_code(random, static_cast<std::size_t>(rule->unlock.type_length), true);
     std::erase_if(state_.type_challenges, [&](const TypeChallenge& c) { return c.rule_id == rule_id; });
     state_.type_challenges.push_back({rule->id, text});
@@ -565,11 +573,21 @@ ActionResult Engine::enter_friend_code(std::string_view rule_id, std::string_vie
 
     ++attempts->failures;
     if (attempts->failures % kFriendAttemptsBeforeWait == 0) {
-        attempts->retry_after = now + Minutes{10 * (attempts->failures / kFriendAttemptsBeforeWait)};
+        attempts->retry_after = now + kFriendWaitStep * (attempts->failures / kFriendAttemptsBeforeWait);
         return failed("wrong code; too many tries, so wait until " + format_time(attempts->retry_after),
                       attempts->retry_after);
     }
     return failed("wrong code");
+}
+
+FriendStatus Engine::friend_status(std::string_view rule_id, TimePoint now) const {
+    const auto attempts = std::ranges::find(state_.friend_attempts, rule_id, &FriendAttempts::rule_id);
+    const int failures = attempts == state_.friend_attempts.end() ? 0 : attempts->failures;
+    FriendStatus status;
+    status.tries_left = kFriendAttemptsBeforeWait - failures % kFriendAttemptsBeforeWait;
+    status.next_wait = kFriendWaitStep * (failures / kFriendAttemptsBeforeWait + 1);
+    if (attempts != state_.friend_attempts.end() && attempts->retry_after > now) status.retry_after = attempts->retry_after;
+    return status;
 }
 
 }  // namespace sirenproof::core

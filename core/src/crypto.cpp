@@ -173,7 +173,7 @@ std::optional<std::string> normalise_code(std::string_view typed) {
     std::string code;
     code.reserve(typed.size());
     for (char c : typed) {
-        if (c == '-' || c == ' ') continue;
+        if (c == '-' || c == ' ' || c == '\t' || c == '\r' || c == '\n') continue;
         if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
         if (c == 'o') c = '0';
         if (c == 'i' || c == 'l') c = '1';

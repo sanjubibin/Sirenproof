@@ -68,6 +68,7 @@ TEST_CASE("random_code uses the unambiguous alphabet", "[crypto]") {
 TEST_CASE("normalise_code forgives case, separators and look-alike letters", "[crypto]") {
     CHECK(normalise_code("ABCDE-FGHJK o i l") == "abcdefghjk011");
     CHECK(normalise_code("x7k2m") == "x7k2m");
+    CHECK(normalise_code("abcde\r\nfghjk\tmn") == "abcdefghjkmn");  // typed over several lines
     CHECK_FALSE(normalise_code("abcu"));  // 'u' isn't in the alphabet
     CHECK_FALSE(normalise_code("ab!c"));
 }

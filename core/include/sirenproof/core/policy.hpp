@@ -149,6 +149,13 @@ struct ActionResult {
     std::optional<TimePoint> until;
 };
 
+// Where a friend-code lock stands before the next guess, for the interface to show.
+struct FriendStatus {
+    int tries_left = 0;                    // wrong codes left before the next wait
+    Minutes next_wait{0};                  // how long that wait will be
+    std::optional<TimePoint> retry_after;  // set while a wait is on
+};
+
 // The rules of Sirenproof, applied to a State.
 //
 // Two promises hold however the engine is driven:
@@ -190,13 +197,16 @@ public:
     ActionResult start_break(TimePoint now);
     ActionResult request_unlock(std::string_view rule_id, TimePoint now);
     bool cancel_unlock(std::string_view rule_id);
+    // The text to type; the same one again until it's typed (or the lock wants a longer one).
     std::optional<std::string> begin_type_unlock(std::string_view rule_id, TimePoint now, RandomSource& random);
     ActionResult finish_type_unlock(std::string_view rule_id, std::string_view typed, TimePoint now);
     ActionResult enter_friend_code(std::string_view rule_id, std::string_view code, TimePoint now);
+    FriendStatus friend_status(std::string_view rule_id, TimePoint now) const;
 
     static constexpr Minutes kSettingsLoosenDelay{10};
     static constexpr std::size_t kFriendCodeLength = 15;
     static constexpr int kFriendAttemptsBeforeWait = 5;
+    static constexpr Minutes kFriendWaitStep{10};  // each round of wrong codes waits this much longer
 
 private:
     Rule* find_rule_mutable(std::string_view id);

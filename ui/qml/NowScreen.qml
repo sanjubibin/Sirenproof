@@ -19,7 +19,7 @@ Flickable {
     readonly property real remaining: Math.max(0, until - now)
     readonly property var unlocking: lock ? (Service.status.unlocking || []).find(u => u.rule === lock.rule) : undefined
     readonly property bool wide: width >= 820
-    property string challenge: ""
+    readonly property int waitMinutes: lock && lock.wait_minutes ? lock.wait_minutes : 30
 
     contentHeight: layout.implicitHeight
     clip: true
@@ -119,7 +119,7 @@ Flickable {
                     wrapMode: Text.Wrap
                     color: Theme.muted
                     text: !root.lock ? "" : {
-                        "wait": "Ask now, and the lock ends 30 minutes from now unless you change your mind.",
+                        "wait": `Ask now, and the lock ends ${root.waitMinutes} minutes from now unless you change your mind.`,
                         "type": "Copy a long random text by hand. It takes a few minutes, which is the point.",
                         "friend": "Enter the code you gave to someone you trust when the lock began.",
                         "none": `This lock has no early exit. It ends at ${Theme.clock(root.until)}.`
@@ -138,85 +138,30 @@ Flickable {
                     }
                     SirenButton {
                         kind: "amber"
-                        text: root.unlocking ? "Keep the lock" : "Start the 30-minute wait"
+                        text: root.unlocking ? "Keep the lock" : `Start the ${root.waitMinutes}-minute wait`
                         onClicked: root.report(root.unlocking ? Service.cancelUnlock(root.lock.rule) : Service.requestUnlock(root.lock.rule),
                                                root.unlocking ? "Good call. The lock stays." : "The wait has started. You can still change your mind.")
                     }
                 }
 
                 // Type it out
-                ColumnLayout {
+                TypeChallenge {
                     Layout.fillWidth: true
                     visible: root.lock !== null && root.lock.unlock === "type"
-                    spacing: 10
-                    SirenButton {
-                        visible: root.challenge.length === 0
-                        kind: "amber"
-                        text: "Show the text to type"
-                        onClicked: {
-                            const result = Service.beginTypeUnlock(root.lock.rule)
-                            if (result.text) root.challenge = result.text
-                            else root.report(result, "")
-                        }
-                    }
-                    Text {
-                        Layout.fillWidth: true
-                        visible: root.challenge.length > 0
-                        text: root.challenge
-                        color: Theme.text
-                        wrapMode: Text.WrapAnywhere
-                        font.family: "Cascadia Mono"; font.pixelSize: 15
-                    }
-                    TextArea {
-                        id: typed
-                        Layout.fillWidth: true
-                        visible: root.challenge.length > 0
-                        placeholderText: "Type it here. Pasting is turned off."
-                        wrapMode: TextEdit.WrapAnywhere
-                        color: Theme.text
-                        font.family: "Cascadia Mono"
-                        background: Rectangle { radius: 12; color: Theme.sunken; border.color: Theme.edgeStrong }
-                        Keys.onPressed: event => {
-                            if (event.matches(StandardKey.Paste)) {
-                                event.accepted = true
-                                root.message("Pasting is turned off here. Type it out.")
-                            }
-                        }
-                    }
-                    SirenButton {
-                        visible: root.challenge.length > 0
-                        kind: "amber"
-                        text: "Unlock"
-                        onClicked: {
-                            const result = Service.finishTypeUnlock(root.lock.rule, typed.text)
-                            if (result.ok) { root.challenge = ""; typed.text = ""; unlockToggle.open = false }
-                            root.report(result, "Unlocked. The rules you scheduled still apply.")
-                        }
-                    }
+                    lock: root.lock
+                    onMessage: text => root.message(text)
+                    onReport: (result, success) => root.report(result, success)
+                    onUnlocked: unlockToggle.open = false
                 }
 
                 // A friend's code
-                RowLayout {
+                FriendCodeEntry {
                     Layout.fillWidth: true
                     visible: root.lock !== null && root.lock.unlock === "friend"
-                    spacing: 10
-                    TextField {
-                        id: code
-                        Layout.fillWidth: true
-                        placeholderText: "xxxxx-xxxxx-xxxxx"
-                        color: Theme.text
-                        Accessible.name: "Friend code"
-                        background: Rectangle { radius: 12; color: Theme.sunken; border.color: Theme.edgeStrong; implicitHeight: 44 }
-                    }
-                    SirenButton {
-                        kind: "amber"
-                        text: "Unlock"
-                        onClicked: {
-                            const result = Service.enterFriendCode(root.lock.rule, code.text)
-                            if (result.ok) { code.text = ""; unlockToggle.open = false }
-                            root.report(result, "Unlocked.")
-                        }
-                    }
+                    lock: root.lock
+                    now: root.now
+                    onReport: (result, success) => root.report(result, success)
+                    onUnlocked: unlockToggle.open = false
                 }
             }
         }
