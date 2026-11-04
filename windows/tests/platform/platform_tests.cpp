@@ -525,21 +525,27 @@ TEST_CASE("SystemRandom produces different bytes each time", "[platform][random]
 
 namespace {
 
-// What this process's token says: an administrator's token is filtered (UAC) or elevated; anything
-// else is asked about the group directly.
+// What this process's token says. UAC splits an administrator's token, but also a Power User's (and a
+// few other groups'), so a filtered token is asked about its elevated half; anything else directly.
 bool token_says_administrator() {
+    BYTE sid[SECURITY_MAX_SID_SIZE] = {};
+    DWORD sid_size = sizeof(sid);
+    if (!CreateWellKnownSid(WinBuiltinAdministratorsSid, nullptr, sid, &sid_size)) return false;
     HANDLE token = nullptr;
     if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) return false;
     TOKEN_ELEVATION_TYPE type{};
     DWORD size = 0;
     GetTokenInformation(token, TokenElevationType, &type, sizeof(type), &size);
+    HANDLE elevated = nullptr;
+    if (type == TokenElevationTypeLimited) {
+        TOKEN_LINKED_TOKEN linked{};
+        if (GetTokenInformation(token, TokenLinkedToken, &linked, sizeof(linked), &size)) elevated = linked.LinkedToken;
+    }
     CloseHandle(token);
-    if (type == TokenElevationTypeLimited || type == TokenElevationTypeFull) return true;
-    BYTE sid[SECURITY_MAX_SID_SIZE] = {};
-    DWORD sid_size = sizeof(sid);
     BOOL member = FALSE;
-    return CreateWellKnownSid(WinBuiltinAdministratorsSid, nullptr, sid, &sid_size) &&
-           CheckTokenMembership(nullptr, sid, &member) && member;
+    const bool asked = CheckTokenMembership(elevated, sid, &member);  // nullptr: this process's own token
+    if (elevated) CloseHandle(elevated);
+    return asked && member;
 }
 
 bool running_as_system() {
